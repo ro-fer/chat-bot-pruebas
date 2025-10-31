@@ -46,68 +46,114 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# PROCESADOR DE PREGUNTAS MEJORADO
+# DETECCIÓN FLEXIBLE DE PREGUNTAS META
 # ================================
 def es_pregunta_meta(pregunta):
-    """Detecta si es una pregunta sobre el chatbot"""
+    """Detecta preguntas sobre el chatbot de forma flexible"""
     pregunta_limpia = pregunta.lower().strip()
     
-    preguntas_meta = [
-        'quién eres', 'qué eres', 'quien eres', 'que eres',
-        'qué puedes', 'qué sabes', 'qué haces', 'para qué sirves',
-        'qué preguntar', 'qué puedo preguntar', 'preguntas posibles',
-        'cuántos documentos', 'qué documentos', 'documentos cargados',
-        'cómo funcionas', 'qué puedes hacer'
-    ]
+    # Patrones flexibles para cada tipo de pregunta
+    patrones = {
+        'quien_eres': [
+            r'quien eres', r'qué eres', r'que eres', r'quien sos', r'que sos',
+            r'presentate', r'dime quien eres', r'explicate', r'identificate'
+        ],
+        'que_puedes': [
+            r'qué puedes', r'que puedes', r'qué sabes', r'que sabes', 
+            r'qué haces', r'que haces', r'para qué sirves', r'para que sirves',
+            r'funciones', r'capacidades', r'qué ofreces', r'que ofreces'
+        ],
+        'que_preguntar': [
+            r'qué preguntar', r'que preguntar', r'qué puedo preguntar', 
+            r'que puedo preguntar', r'preguntas posibles', r'ejemplos de preguntas',
+            r'qué preguntas', r'que preguntas', r'ayuda con preguntas'
+        ],
+        'documentos': [
+            r'cuántos documentos', r'que documentos', r'qué documentos',
+            r'documentos cargados', r'archivos tienes', r'qué archivos',
+            r'listar documentos', r'mostrar archivos'
+        ]
+    }
     
-    return any(meta in pregunta_limpia for meta in preguntas_meta)
+    # Verificar cada categoría
+    for categoria, patrones_lista in patrones.items():
+        for patron in patrones_lista:
+            if re.search(patron, pregunta_limpia):
+                return categoria
+    
+    return None
 
-def responder_pregunta_meta(pregunta, documentos):
+def responder_pregunta_meta(tipo_pregunta, pregunta_original, documentos):
     """Responde preguntas sobre el chatbot"""
-    pregunta_limpia = pregunta.lower().strip()
     documentos_lista = list(documentos.keys())
     
-    if 'quién eres' in pregunta_limpia or 'qué eres' in pregunta_limpia:
-        return "🤖 **¡Hola! Soy tu asistente inteligente**\n\nPuedo leer y buscar información en tus documentos DOCX. Estoy aquí para ayudarte a encontrar rápidamente la información que necesitas."
+    if tipo_pregunta == 'quien_eres':
+        return "🤖 **¡Hola! Soy tu asistente inteligente**\n\nPuedo leer y buscar información en tus documentos DOCX. Estoy aquí para ayudarte a encontrar rápidamente la información que necesitas en tus manuales y documentos."
     
-    elif 'qué puedes' in pregunta_limpia or 'qué haces' in pregunta_limpia:
-        return f"🔍 **Puedo ayudarte a:**\n\n• Buscar información en tus documentos\n• Encontrar procedimientos específicos\n• Localizar datos técnicos\n• Explicar conceptos del manual\n\n📂 **Documentos cargados:** {len(documentos_lista)}\n💡 **Solo necesito preguntas completas**"
+    elif tipo_pregunta == 'que_puedes':
+        return f"""🔍 **Puedo ayudarte a:**
+
+• 🔎 **Buscar información** en tus documentos
+• 📋 **Encontrar procedimientos** específicos  
+• 💼 **Localizar datos técnicos** y normativas
+• 🎯 **Explicar conceptos** del manual
+• 📂 **Navegar por múltiples** documentos
+
+📚 **Documentos cargados:** {len(documentos_lista)}
+💡 **Tip:** Haz preguntas completas para mejores resultados
+
+**Ejemplo:** En lugar de "licencia" pregunta "¿Cómo gestiono una licencia?""""
     
-    elif 'qué preguntar' in pregunta_limpia or 'preguntas posibles' in pregunta_limpia:
+    elif tipo_pregunta == 'que_preguntar':
         ejemplos = [
             "¿Cómo ingreso al sistema?",
-            "¿Qué es la firma digital?",
-            "¿Cómo gestiono una licencia?",
+            "¿Qué es la firma digital y cómo funciona?",
+            "¿Cómo gestiono una licencia en el sistema?",
             "¿Dónde encuentro soporte técnico?",
-            "¿Qué son los datos personales?"
+            "¿Qué son los datos personales y cómo se configuran?",
+            "¿Cómo funciona el buzón grupal?",
+            "¿Qué trámites puedo realizar?"
         ]
         ejemplos_texto = "\n".join([f"• {ej}" for ej in ejemplos])
-        return f"❓ **Ejemplos de preguntas:**\n\n{ejemplos_texto}\n\n💡 **Consejo:** Haz preguntas completas en lugar de palabras sueltas."
+        return f"""❓ **Puedes preguntarme sobre cualquier tema de tus documentos:**
+
+{ejemplos_texto}
+
+💡 **Consejos:**
+• Preguntas completas → mejores respuestas
+• Específico → más preciso
+• Contexto → más relevante
+
+📄 **Documento actual:** {documentos_lista[0] if documentos_lista else 'Ninguno'}"""
     
-    elif 'documentos' in pregunta_limpia:
-        return f"📂 **Documentos cargados ({len(documentos_lista)}):**\n\n" + "\n".join([f"• {doc}" for doc in documentos_lista])
+    elif tipo_pregunta == 'documentos':
+        docs_texto = "\n".join([f"• {doc}" for doc in documentos_lista])
+        return f"""📂 **Documentos cargados ({len(documentos_lista)}):**
+
+{docs_texto}
+
+🔍 **Puedo buscar en todos ellos simultáneamente.**"""
     
     else:
-        return "🤖 Soy tu asistente para buscar información en documentos DOCX. ¿En qué puedo ayudarte?"
+        return "🤖 Soy tu asistente para buscar información en documentos. ¿En qué puedo ayudarte?"
 
 def buscar_en_documentos(pregunta, documentos):
     """Busca en documentos solo si NO es pregunta meta"""
-    # Si es pregunta meta, no buscar en documentos
-    if es_pregunta_meta(pregunta):
-        return None
-    
     pregunta_limpia = pregunta.lower().strip()
     
-    # 🚨 Una sola palabra = No entiendo
+    # 🚨 Una sola palabra = Sugerencia
     if len(pregunta_limpia.split()) <= 1:
-        return "❌ No entiendo. Por favor haz una pregunta completa como: '¿Cómo ingreso al sistema?'"
+        return f"❌ '{pregunta}' es muy general.\n\n💡 **Intenta con:** '¿Cómo funciona {pregunta}?' o '¿Qué es {pregunta}?'"
     
-    palabras_clave = set(re.findall(r'\b[a-záéíóúñ]{4,}\b', pregunta_limpia))
-    palabras_filtro = {'sobre', 'como', 'que', 'donde', 'puedo', 'preguntar'}
+    palabras_clave = set(re.findall(r'\b[a-záéíóúñ]{3,}\b', pregunta_limpia))
+    palabras_filtro = {
+        'sobre', 'como', 'que', 'donde', 'puedo', 'preguntar', 'para', 'por', 'con',
+        'sobre el', 'sobre la', 'sobre los', 'sobre las', 'acerca', 'acerca de'
+    }
     palabras_clave = {p for p in palabras_clave if p not in palabras_filtro}
     
     if not palabras_clave:
-        return "🤔 ¿Podrías ser más específico? Por ejemplo: '¿Cómo ingreso al sistema?'"
+        return "🤔 ¿Podrías ser más específico? Por ejemplo: '¿Cómo ingreso al sistema?' o '¿Qué son los datos personales?'"
     
     resultados = []
     
@@ -142,7 +188,14 @@ def buscar_en_documentos(pregunta, documentos):
                 respuesta += "---\n\n"
         return respuesta
     else:
-        return f"🤔 No encontré información específica sobre '{pregunta}'."
+        sugerencias = [
+            "Revisa la ortografía",
+            "Intenta con sinónimos", 
+            "Haz la pregunta más específica",
+            "Pregunta de otra forma"
+        ]
+        sugerencias_texto = "\n".join([f"• {sug}" for sug in sugerencias])
+        return f"🤔 No encontré información sobre '{pregunta}'.\n\n💡 **Sugerencias:**\n{sugerencias_texto}"
 
 # ================================
 # RUTAS PRINCIPALES
@@ -172,27 +225,28 @@ def chat():
         # Respuestas rápidas
         pregunta_lower = pregunta.lower()
         
-        if any(saludo in pregunta_lower for saludo in ['hola', 'buenos días', 'buenas tardes']):
+        if any(saludo in pregunta_lower for saludo in ['hola', 'buenos días', 'buenas tardes', 'buenas']):
             return jsonify({
                 'success': True,
                 'response': f"¡Hola! 👋 Soy tu asistente. Tengo {len(documentos)} documento(s) cargados. ¿En qué puedo ayudarte?"
             })
         
-        if 'cómo estás' in pregunta_lower:
+        if 'cómo estás' in pregunta_lower or 'que tal' in pregunta_lower:
             return jsonify({
                 'success': True, 
-                'response': "¡Perfecto! 😊 Listo para ayudarte."
+                'response': "¡Perfecto! 😊 Listo para ayudarte a encontrar información en tus documentos."
             })
         
         if 'gracias' in pregunta_lower:
             return jsonify({
                 'success': True,
-                'response': "¡De nada! 😊"
+                'response': "¡De nada! 😊 ¿Necesitas algo más?"
             })
         
-        # 🎯 PRIMERO verificar si es pregunta meta
-        if es_pregunta_meta(pregunta):
-            respuesta = responder_pregunta_meta(pregunta, documentos)
+        # 🎯 DETECCIÓN FLEXIBLE de preguntas meta
+        tipo_meta = es_pregunta_meta(pregunta)
+        if tipo_meta:
+            respuesta = responder_pregunta_meta(tipo_meta, pregunta, documentos)
             return jsonify({'success': True, 'response': respuesta})
         
         # Si NO es pregunta meta, buscar en documentos
@@ -207,5 +261,5 @@ def chat():
 # ================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 ChatBot iniciado en puerto {port}")
+    print(f"🚀 ChatBot con detección flexible iniciado en puerto {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
