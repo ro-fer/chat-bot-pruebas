@@ -1,123 +1,97 @@
 from flask import Flask, request, jsonify, render_template
-import fitz  # PyMuPDF
 import os
-import numpy as np
-import faiss
-from sentence_transformers import SentenceTransformer
-import requests
-import json
+import re
+from pathlib import Path
 
 app = Flask(__name__)
 
 # ================================
-# Configuración - Modelo liviano
+# CONFIGURACIÓN ESCALABLE
 # ================================
-model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')  # Modelo pequeño
+DOCUMENTS_DIR = "documents"
+PROCESSED_DIR = "processed_data"
+os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+os.makedirs(PROCESSED_DIR, exist_ok=True)
 
-# Variables globales para el conocimiento
-document_chunks = []
-index = None
+# ================================
+# PROCESADOR DE PDFs (Versión LIVIANA)
+# ================================
+def extraer_texto_pdf_simple(ruta_pdf):
+    """Extrae texto básico de PDF sin dependencias pesadas"""
+    try:
+        # Intentar con PyMuPDF si está disponible
+        try:
+            import fitz
+            doc = fitz.open(ruta_pdf)
+            texto = ""
+            for pagina in doc:
+                texto += pagina.get_text() + "\n"
+            doc.close()
+            return texto
+        except ImportError:
+            # Fallback: usar pdfminer (más liviano)
+            from pdfminer.high_level import extract_text
+            return extract_text(ruta_pdf)
+    except Exception as e:
+        return f"❌ Error procesando PDF: {str(e)}"
 
-# ================================
-# Cargar y procesar PDF
-# ================================
-def cargar_y_procesar_pdf(ruta_pdf="documentacion.pdf"):
-    global document_chunks, index
+def procesar_todos_los_pdfs():
+    """Procesa todos los PDFs en la carpeta documents/"""
+    base_conocimiento = {}
     
-    if not os.path.exists(ruta_pdf):
-        print("⚠️ No se encontró documentacion.pdf, usando respuestas predefinidas")
-        # Respuestas de emergencia basadas en GDE
-        document_chunks = [
-            "El Sistema GDE (Gestión Documental Electrónica) permite gestionar documentos digitales",
-            "Para ingresar al GDE se utiliza credencial única en el portal oficial del estado",
-            "El GDE gestiona expedientes digitales, documentos electrónicos y firma digital",
-            "Los trámites documentales se realizan de forma digital en la plataforma GDE",
-            "El manual de usuario del GDE contiene las instrucciones para usar el sistema",
-            "La firma digital en GDE tiene validez legal según la normativa vigente"
-        ]
-    else:
-        print("📖 Cargando documentación PDF...")
-        doc = fitz.open(ruta_pdf)
-        document_chunks = []
-        
-        for pagina_num in range(len(doc)):
-            pagina = doc.load_page(pagina_num)
-            texto = pagina.get_text()
+    for archivo_pdf in os.listdir(DOCUMENTS_DIR):
+        if archivo_pdf.lower().endswith('.pdf'):
+            nombre_base = os.path.splitext(archivo_pdf)[0]
+            ruta_pdf = os.path.join(DOCUMENTS_DIR, archivo_pdf)
+            ruta_txt = os.path.join(PROCESSED_DIR, f"{nombre_base}.txt")
             
-            # Dividir en chunks más pequeños
-            lineas = texto.split('\n')
-            chunk = ""
-            for linea in lineas:
-                linea = linea.strip()
-                if linea:
-                    chunk += linea + " "
-                    if len(chunk) > 200:  # Chunks de ~200 caracteres
-                        document_chunks.append(chunk)
-                        chunk = ""
-            if chunk:
-                document_chunks.append(chunk)
-        
-        doc.close()
-        print(f"✅ PDF procesado: {len(document_chunks)} fragmentos")
-
-    # Crear índice de búsqueda semántica
-    if document_chunks:
-        embeddings = model.encode(document_chunks)
-        dimension = embeddings.shape[1]
-        index = faiss.IndexFlatL2(dimension)
-        index.add(np.array(embeddings).astype('float32'))
-        print("🔍 Índice de búsqueda creado")
-
-# ================================
-# Búsqueda en documentación
-# ================================
-def buscar_en_documentacion(pregunta, n_resultados=3):
-    if not document_chunks or index is None:
-        return ["Información no disponible en este momento."]
+            # Procesar PDF y guardar texto
+            if os.path.exists(ruta_pdf):
+                texto = extraer_texto_pdf_simple(ruta_pdf)
+                
+                # Guardar versión procesada
+                with open(ruta_txt, 'w', encoding='utf-8') as f:
+                    f.write(texto)
+                
+                # Agregar a base de conocimiento
+                base_conocimiento[nombre_base] = texto[:1000] + "..."  # Solo preview
+                
+                print(f"✅ PDF procesado: {archivo_pdf}")
     
-    pregunta_embedding = model.encode([pregunta])
-    distancias, indices = index.search(np.array(pregunta_embedding).astype('float32'), n_resultados)
-    
+    return base_conocimiento
+
+def buscar_en_pdfs(pregunta):
+    """Busca en todos los PDFs procesados"""
     resultados = []
-    for idx in indices[0]:
-        if idx < len(document_chunks):
-            resultados.append(document_chunks[idx])
     
-    return resultados if resultados else ["No se encontró información relevante en la documentación."]
+    for archivo_txt in os.listdir(PROCESSED_DIR):
+        if archivo_txt.endswith('.txt'):
+            ruta_txt = os.path.join(PROCESSED_DIR, archivo_txt)
+            
+            try:
+                with open(ruta_txt, 'r', encoding='utf-8') as f:
+                    contenido = f.read()
+                
+                # Búsqueda simple por palabras clave
+                palabras = pregunta.lower().split()
+                coincidencias = sum(1 for palabra in palabras if palabra in contenido.lower())
+                
+                if coincidencias > 0:
+                    # Extraer contexto alrededor de las coincidencias
+                    lineas = contenido.split('\n')
+                    for i, linea in enumerate(lineas):
+                        if any(palabra in linea.lower() for palabra in palabras):
+                            contexto = "\n".join(lineas[max(0, i-1):min(len(lineas), i+2)])
+                            resultados.append(f"📄 {archivo_txt}:\n{contexto}\n")
+                            break
+                            
+            except Exception as e:
+                print(f"Error leyendo {archivo_txt}: {e}")
+    
+    return resultados if resultados else ["ℹ️ Información no encontrada en la documentación."]
 
 # ================================
-# Generar respuesta
-# ================================
-def generar_respuesta(pregunta):
-    # Buscar en documentación
-    contexto = buscar_en_documentacion(pregunta)
-    contexto_texto = "\n".join(contexto)
-    
-    # Si no hay mucha información específica, usar respuestas predefinidas
-    respuestas_predefinidas = {
-        "hola": "¡Hola! Soy tu asistente del Sistema GDE. ¿En qué puedo ayudarte?",
-        "que es gde": "GDE es el Sistema de Gestión Documental Electrónica que permite gestionar documentos digitales del estado.",
-        "como ingresar": "Para ingresar al GDE utiliza tu credencial única en el portal oficial del estado.",
-        "manual": "Consulta el manual de usuario del GDE para instrucciones detalladas.",
-        "tramite": "Los trámites documentales se realizan de forma digital en la plataforma GDE.",
-        "firma digital": "La firma digital en GDE tiene validez legal según la normativa vigente."
-    }
-    
-    # Buscar respuesta predefinida
-    pregunta_lower = pregunta.lower()
-    for key, respuesta in respuestas_predefinidas.items():
-        if key in pregunta_lower:
-            return f"{respuesta}\n\n📚 Información de apoyo:\n{contexto_texto}"
-    
-    # Respuesta generica con contexto
-    return f"""Basándome en la documentación del GDE:
-
-{contexto_texto}
-
-¿Te sirve esta información o necesitas más detalles sobre algún aspecto específico?"""
-
-# ================================
-# Rutas Flask
+# RUTAS PRINCIPALES
 # ================================
 @app.route('/')
 def index():
@@ -129,19 +103,46 @@ def chat():
     pregunta = data.get("prompt", "")
     
     if not pregunta.strip():
-        return jsonify({"success": False, "error": "Prompt vacío"})
+        return jsonify({"success": False, "error": "Por favor escribe una pregunta"})
 
     try:
-        respuesta = generar_respuesta(pregunta)
+        # Buscar en todos los PDFs procesados
+        resultados = buscar_en_pdfs(pregunta)
+        respuesta = "🔍 **Resultados de la búsqueda:**\n\n" + "\n---\n".join(resultados)
+        
         return jsonify({"success": True, "response": respuesta})
+        
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": f"Error: {str(e)}"})
+
+@app.route('/api/status')
+def status():
+    """Endpoint para ver el estado de los PDFs procesados"""
+    pdfs = os.listdir(DOCUMENTS_DIR)
+    procesados = os.listdir(PROCESSED_DIR)
+    
+    return jsonify({
+        "pdfs_en_carpeta": pdfs,
+        "pdfs_procesados": procesados,
+        "total_pdfs": len(pdfs),
+        "total_procesados": len(procesados)
+    })
 
 # ================================
-# Inicialización
+# INICIALIZACIÓN
 # ================================
-print("🚀 Iniciando chatbot GDE...")
-cargar_y_procesar_pdf()
+print("🚀 Iniciando chatbot multi-PDF...")
+print("📂 Procesando PDFs...")
+
+# Procesar PDFs al inicio (solo los nuevos)
+base_conocimiento = procesar_todos_los_pdfs()
+
+if base_conocimiento:
+    print(f"✅ {len(base_conocimiento)} PDF(s) procesado(s)")
+    for nombre, preview in base_conocimiento.items():
+        print(f"   📄 {nombre}: {preview[:100]}...")
+else:
+    print("⚠️ No se encontraron PDFs en la carpeta 'documents/'")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
