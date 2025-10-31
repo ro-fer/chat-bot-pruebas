@@ -1,87 +1,79 @@
 from flask import Flask, request, jsonify, render_template
 import os
 import pdfplumber
-from pathlib import Path
+import re
 
 app = Flask(__name__)
 
 # ================================
-# CONFIGURACIÓN ESCALABLE
+# CONFIGURACIÓN
 # ================================
 DOCUMENTS_DIR = "documents"
 PROCESSED_DIR = "processed_data"
 os.makedirs(DOCUMENTS_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 
-# ================================
-# PROCESADOR DE PDFs CON PDFPLUMBER
-# ================================
+def buscar_respuesta_simple(pregunta):
+    """Busca respuestas solo para preguntas completas"""
+    pregunta_limpia = pregunta.lower().strip()
+    
+    # 🚨 DETECTAR PALABRAS SUELTAS
+    palabras = pregunta_limpia.split()
+    if len(palabras) <= 1:
+        return "❌ No entiendo la pregunta. Por favor, haz una pregunta completa como: '¿Cómo ingreso al sistema?'"
+    
+    # Respuestas rápidas para conversación
+    if re.search(r'hola|buen(os|as)', pregunta_limpia):
+        return "¡Hola! 👋 Soy tu asistente del Manual de Escritorio Único. ¿En qué puedo ayudarte?"
+    
+    if re.search(r'como estas|qué tal', pregunta_limpia):
+        return "¡Perfecto! 😊 Listo para ayudarte con el Sistema GDE."
+    
+    if re.search(r'gracias', pregunta_limpia):
+        return "¡De nada! 😊 ¿Necesitas ayuda con algo más?"
+    
+    # Si es una pregunta completa, buscar en el manual
+    try:
+        for archivo_pdf in os.listdir(DOCUMENTS_DIR):
+            if archivo_pdf.lower().endswith('.pdf'):
+                ruta_pdf = os.path.join(DOCUMENTS_DIR, archivo_pdf)
+                texto = extraer_texto_pdf(ruta_pdf)
+                
+                if texto:
+                    # Buscar párrafos relevantes
+                    parrafos = [p.strip() for p in texto.split('\n\n') if len(p.strip()) > 50]
+                    
+                    for parrafo in parrafos:
+                        # Verificar si el párrafo contiene palabras de la pregunta
+                        palabras_pregunta = set(palabras)
+                        palabras_parrafo = set(re.findall(r'\b[a-záéíóúñ]+\b', parrafo.lower()))
+                        
+                        coincidencias = palabras_pregunta.intersection(palabras_parrafo)
+                        if len(coincidencias) >= 2:  # Mínimo 2 palabras coincidentes
+                            # Acortar si es muy largo
+                            if len(parrafo) > 300:
+                                parrafo = parrafo[:300] + "..."
+                            return f"📄 **Manual GDE**:\n{parrafo}"
+        
+        # Si no encontró nada
+        return f"🔍 No encontré información específica sobre '{pregunta}'.\n\n💡 **Ejemplos de preguntas:**\n• ¿Cómo ingreso al sistema?\n• ¿Qué son los datos personales?\n• ¿Cómo gestiono una licencia?"
+        
+    except Exception as e:
+        return f"❌ Error buscando en el manual: {str(e)}"
+
 def extraer_texto_pdf(ruta_pdf):
-    """Extrae texto de PDF usando pdfplumber"""
+    """Extrae texto básico del PDF"""
     try:
         texto = ""
         with pdfplumber.open(ruta_pdf) as pdf:
             for pagina in pdf.pages:
                 texto_pagina = pagina.extract_text()
                 if texto_pagina:
-                    texto += texto_pagina + "\n"
-        return texto if texto else "❌ No se pudo extraer texto del PDF"
+                    texto += texto_pagina + "\n\n"
+        return texto.strip() if texto else ""
     except Exception as e:
-        return f"❌ Error procesando PDF: {str(e)}"
-
-def procesar_todos_los_pdfs():
-    """Procesa todos los PDFs en la carpeta documents/"""
-    base_conocimiento = {}
-    
-    for archivo_pdf in os.listdir(DOCUMENTS_DIR):
-        if archivo_pdf.lower().endswith('.pdf'):
-            nombre_base = os.path.splitext(archivo_pdf)[0]
-            ruta_pdf = os.path.join(DOCUMENTS_DIR, archivo_pdf)
-            ruta_txt = os.path.join(PROCESSED_DIR, f"{nombre_base}.txt")
-            
-            if os.path.exists(ruta_pdf):
-                print(f"📖 Procesando: {archivo_pdf}")
-                texto = extraer_texto_pdf(ruta_pdf)
-                
-                # Guardar versión procesada
-                with open(ruta_txt, 'w', encoding='utf-8') as f:
-                    f.write(texto)
-                
-                base_conocimiento[nombre_base] = texto[:500] + "..."
-                print(f"✅ PDF procesado: {archivo_pdf}")
-    
-    return base_conocimiento
-
-def buscar_en_pdfs(pregunta):
-    """Busca en todos los PDFs procesados"""
-    resultados = []
-    
-    for archivo_txt in os.listdir(PROCESSED_DIR):
-        if archivo_txt.endswith('.txt'):
-            ruta_txt = os.path.join(PROCESSED_DIR, archivo_txt)
-            
-            try:
-                with open(ruta_txt, 'r', encoding='utf-8') as f:
-                    contenido = f.read()
-                
-                # Búsqueda simple por palabras clave
-                palabras = pregunta.lower().split()
-                coincidencias = [palabra for palabra in palabras if palabra in contenido.lower()]
-                
-                if coincidencias:
-                    # Encontrar párrafo con coincidencias
-                    lineas = contenido.split('\n')
-                    for i, linea in enumerate(lineas):
-                        if any(palabra in linea.lower() for palabra in coincidencias):
-                            contexto = "\n".join(lineas[max(0, i-1):min(len(lineas), i+3)])
-                            nombre_doc = archivo_txt.replace('.txt', '')
-                            resultados.append(f"📄 **{nombre_doc}**:\n{contexto}\n")
-                            break
-                            
-            except Exception as e:
-                print(f"Error leyendo {archivo_txt}: {e}")
-    
-    return resultados if resultados else ["🔍 No encontré información específica sobre eso en la documentación."]
+        print(f"Error procesando PDF: {e}")
+        return ""
 
 # ================================
 # RUTAS PRINCIPALES
@@ -99,35 +91,16 @@ def chat():
         return jsonify({"success": False, "error": "Por favor escribe una pregunta"})
 
     try:
-        resultados = buscar_en_pdfs(pregunta)
-        respuesta = "🤖 **Resultados de la búsqueda:**\n\n" + "\n---\n".join(resultados)
-        
+        respuesta = buscar_respuesta_simple(pregunta)
         return jsonify({"success": True, "response": respuesta})
         
     except Exception as e:
         return jsonify({"success": False, "error": f"Error: {str(e)}"})
 
-@app.route('/api/status')
-def status():
-    """Endpoint para ver el estado de los PDFs"""
-    pdfs = [f for f in os.listdir(DOCUMENTS_DIR) if f.endswith('.pdf')]
-    procesados = [f for f in os.listdir(PROCESSED_DIR) if f.endswith('.txt')]
-    
-    return jsonify({
-        "pdfs_en_carpeta": pdfs,
-        "pdfs_procesados": procesados,
-        "mensaje": f"✅ {len(procesados)} de {len(pdfs)} PDFs procesados"
-    })
-
 # ================================
 # INICIALIZACIÓN
 # ================================
-print("🚀 Iniciando chatbot multi-PDF...")
-if os.path.exists(DOCUMENTS_DIR) and os.listdir(DOCUMENTS_DIR):
-    base_conocimiento = procesar_todos_los_pdfs()
-    print(f"✅ {len(base_conocimiento)} PDF(s) procesado(s)")
-else:
-    print("⚠️ No hay PDFs en la carpeta 'documents/'")
+print("🚀 Iniciando ChatBot GDE - Modo Simple...")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
