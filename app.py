@@ -20,11 +20,10 @@ def procesar_docx(ruta_archivo):
         texto_completo = ""
         
         for paragraph in doc.paragraphs:
-            if paragraph.text.strip():  # Ignorar párrafos vacíos
+            if paragraph.text.strip():
                 texto_completo += paragraph.text + "\n\n"
         
         return texto_completo.strip()
-    
     except Exception as e:
         return f"❌ Error procesando DOCX: {str(e)}"
 
@@ -39,110 +38,111 @@ def cargar_documentos_docx():
     for archivo in os.listdir(DOCUMENTS_DIR):
         if archivo.lower().endswith('.docx'):
             ruta_archivo = os.path.join(DOCUMENTS_DIR, archivo)
-            
-            print(f"📖 Procesando: {archivo}")
             texto = procesar_docx(ruta_archivo)
             
             if texto and not texto.startswith("❌ Error"):
                 documentos[archivo] = texto
-                print(f"✅ {archivo} cargado correctamente")
-            else:
-                print(f"❌ Error con {archivo}: {texto}")
     
     return documentos
 
 # ================================
-# BÚSQUEDA INTELIGENTE MEJORADA
+# PROCESADOR DE PREGUNTAS MEJORADO
 # ================================
-def procesar_pregunta_meta(pregunta, documentos):
-    """Procesa preguntas sobre el chatbot mismo"""
+def es_pregunta_meta(pregunta):
+    """Detecta si es una pregunta sobre el chatbot"""
+    pregunta_limpia = pregunta.lower().strip()
+    
+    preguntas_meta = [
+        'quién eres', 'qué eres', 'quien eres', 'que eres',
+        'qué puedes', 'qué sabes', 'qué haces', 'para qué sirves',
+        'qué preguntar', 'qué puedo preguntar', 'preguntas posibles',
+        'cuántos documentos', 'qué documentos', 'documentos cargados',
+        'cómo funcionas', 'qué puedes hacer'
+    ]
+    
+    return any(meta in pregunta_limpia for meta in preguntas_meta)
+
+def responder_pregunta_meta(pregunta, documentos):
+    """Responde preguntas sobre el chatbot"""
     pregunta_limpia = pregunta.lower().strip()
     documentos_lista = list(documentos.keys())
     
-    # Preguntas sobre el chatbot
-    if any(palabra in pregunta_limpia for palabra in ['qué puedes', 'qué sabes', 'qué haces', 'para qué sirves']):
-        return f"🤖 **Soy tu asistente de documentos**\n\nPuedo ayudarte a buscar información en tus archivos DOCX.\n\n📂 **Documentos cargados:** {documentos_lista}\n\n💡 **Puedes preguntarme sobre:**\n• Contenido de los documentos\n• Temas específicos\n• Información técnica\n• Procedimientos\n\nSolo haz una pregunta completa y buscaré en los documentos."
+    if 'quién eres' in pregunta_limpia or 'qué eres' in pregunta_limpia:
+        return "🤖 **¡Hola! Soy tu asistente inteligente**\n\nPuedo leer y buscar información en tus documentos DOCX. Estoy aquí para ayudarte a encontrar rápidamente la información que necesitas."
     
-    if any(palabra in pregunta_limpia for palabra in ['qué preguntar', 'qué puedo preguntar', 'preguntas posibles']):
-        doc_ejemplo = documentos_lista[0] if documentos_lista else "tus documentos"
-        return f"❓ **Puedes preguntarme sobre:**\n\n• '¿Qué información hay sobre [tema]?'\n• '¿Cómo funciona el sistema?'\n• '¿Qué son los datos personales?'\n• 'Explicame sobre licencias'\n• '¿Dónde encuentro soporte técnico?'\n• 'Información sobre firma digital'\n\n📄 **Documento disponible:** {doc_ejemplo}\n\nSolo necesito preguntas completas, no palabras sueltas."
+    elif 'qué puedes' in pregunta_limpia or 'qué haces' in pregunta_limpia:
+        return f"🔍 **Puedo ayudarte a:**\n\n• Buscar información en tus documentos\n• Encontrar procedimientos específicos\n• Localizar datos técnicos\n• Explicar conceptos del manual\n\n📂 **Documentos cargados:** {len(documentos_lista)}\n💡 **Solo necesito preguntas completas**"
     
-    if any(palabra in pregunta_limpia for palabra in ['cuántos documentos', 'qué documentos', 'documentos cargados']):
+    elif 'qué preguntar' in pregunta_limpia or 'preguntas posibles' in pregunta_limpia:
+        ejemplos = [
+            "¿Cómo ingreso al sistema?",
+            "¿Qué es la firma digital?",
+            "¿Cómo gestiono una licencia?",
+            "¿Dónde encuentro soporte técnico?",
+            "¿Qué son los datos personales?"
+        ]
+        ejemplos_texto = "\n".join([f"• {ej}" for ej in ejemplos])
+        return f"❓ **Ejemplos de preguntas:**\n\n{ejemplos_texto}\n\n💡 **Consejo:** Haz preguntas completas en lugar de palabras sueltas."
+    
+    elif 'documentos' in pregunta_limpia:
         return f"📂 **Documentos cargados ({len(documentos_lista)}):**\n\n" + "\n".join([f"• {doc}" for doc in documentos_lista])
     
-    if 'quién eres' in pregunta_limpia or 'qué eres' in pregunta_limpia:
-        return "🤖 **Soy tu asistente inteligente**\n\nPuedo leer y buscar información en tus documentos DOCX. Solo necesito que me hagas preguntas completas para encontrar la información que buscas."
-    
-    # Si no es pregunta meta, devolver None para buscar en documentos
-    return None
+    else:
+        return "🤖 Soy tu asistente para buscar información en documentos DOCX. ¿En qué puedo ayudarte?"
 
 def buscar_en_documentos(pregunta, documentos):
-    """Busca en todos los documentos DOCX cargados"""
+    """Busca en documentos solo si NO es pregunta meta"""
+    # Si es pregunta meta, no buscar en documentos
+    if es_pregunta_meta(pregunta):
+        return None
+    
     pregunta_limpia = pregunta.lower().strip()
     
     # 🚨 Una sola palabra = No entiendo
     if len(pregunta_limpia.split()) <= 1:
-        return "❌ No entiendo la pregunta. Por favor haz una pregunta completa."
+        return "❌ No entiendo. Por favor haz una pregunta completa como: '¿Cómo ingreso al sistema?'"
     
     palabras_clave = set(re.findall(r'\b[a-záéíóúñ]{4,}\b', pregunta_limpia))
-    
-    # Filtrar palabras muy comunes
-    palabras_filtro = {'sobre', 'sobre el', 'sobre la', 'sobre los', 'sobre las', 'como', 'que', 'donde', 'puedo', 'preguntar'}
+    palabras_filtro = {'sobre', 'como', 'que', 'donde', 'puedo', 'preguntar'}
     palabras_clave = {p for p in palabras_clave if p not in palabras_filtro}
     
     if not palabras_clave:
-        return "🤔 ¿Podrías ser más específico? Por ejemplo: '¿Cómo ingreso al sistema?' o '¿Qué son los datos personales?'"
+        return "🤔 ¿Podrías ser más específico? Por ejemplo: '¿Cómo ingreso al sistema?'"
     
     resultados = []
     
     for doc_nombre, contenido in documentos.items():
-        contenido_lower = contenido.lower()
-        
-        # Buscar párrafos relevantes
         parrafos = contenido.split('\n\n')
         
         for parrafo in parrafos:
-            if len(parrafo.strip()) < 30:  # Ignorar párrafos muy cortos
+            if len(parrafo.strip()) < 30:
                 continue
                 
             parrafo_lower = parrafo.lower()
             coincidencias = sum(1 for palabra in palabras_clave if palabra in parrafo_lower)
             
             if coincidencias > 0:
-                # Acortar si es muy largo
                 if len(parrafo) > 400:
-                    # Intentar cortar en oración completa
-                    oraciones = parrafo.split('.')
-                    parrafo_corto = ""
-                    for oracion in oraciones:
-                        if len(parrafo_corto + oracion) < 350:
-                            parrafo_corto += oracion + '.'
-                        else:
-                            break
-                    parrafo = parrafo_corto + ".." if parrafo_corto else parrafo[:400] + "..."
+                    parrafo = parrafo[:400] + "..."
                 
                 resultados.append({
                     'documento': doc_nombre,
                     'contenido': parrafo.strip(),
                     'relevancia': coincidencias
                 })
-                break  # Solo un párrafo por documento
+                break
     
-    # Ordenar por relevancia
     resultados.sort(key=lambda x: x['relevancia'], reverse=True)
     
     if resultados:
         respuesta = f"🔍 **Encontré esto sobre '{pregunta}':**\n\n"
-        
-        for i, resultado in enumerate(resultados[:2]):  # Máximo 2 resultados
+        for i, resultado in enumerate(resultados[:2]):
             respuesta += f"📄 **{resultado['documento']}:**\n{resultado['contenido']}\n\n"
-            
             if i < len(resultados) - 1:
                 respuesta += "---\n\n"
-        
         return respuesta
     else:
-        return f"🤔 No encontré información específica sobre '{pregunta}'.\n\n💡 **Sugerencias:**\n• '¿Cómo funciona el sistema?'\n• 'Información sobre licencias'\n• '¿Qué son los datos personales?'"
+        return f"🤔 No encontré información específica sobre '{pregunta}'."
 
 # ================================
 # RUTAS PRINCIPALES
@@ -160,44 +160,44 @@ def chat():
         if not pregunta:
             return jsonify({'success': False, 'error': 'Por favor escribe una pregunta'})
         
-        # Cargar documentos DOCX
+        # Cargar documentos
         documentos = cargar_documentos_docx()
         
         if not documentos:
             return jsonify({
                 'success': True,
-                'response': "📂 No hay archivos DOCX en la carpeta 'documents/'.\n\n💡 Sube tus archivos .docx a la carpeta 'documents/' para que pueda leerlos."
+                'response': "📂 No hay archivos DOCX en la carpeta 'documents/'."
             })
         
-        # Respuestas rápidas para conversación
+        # Respuestas rápidas
         pregunta_lower = pregunta.lower()
         
         if any(saludo in pregunta_lower for saludo in ['hola', 'buenos días', 'buenas tardes']):
             return jsonify({
                 'success': True,
-                'response': f"¡Hola! 👋 Soy tu asistente. Tengo {len(documentos)} documento(s) DOCX cargados. ¿En qué puedo ayudarte?"
+                'response': f"¡Hola! 👋 Soy tu asistente. Tengo {len(documentos)} documento(s) cargados. ¿En qué puedo ayudarte?"
             })
         
         if 'cómo estás' in pregunta_lower:
             return jsonify({
                 'success': True, 
-                'response': "¡Perfecto! 😊 Listo para buscar en tus documentos DOCX."
+                'response': "¡Perfecto! 😊 Listo para ayudarte."
             })
         
         if 'gracias' in pregunta_lower:
             return jsonify({
                 'success': True,
-                'response': "¡De nada! 😊 ¿Necesitas buscar algo más en los documentos?"
+                'response': "¡De nada! 😊"
             })
         
-        # Primero verificar si es pregunta sobre el chatbot
-        respuesta_meta = procesar_pregunta_meta(pregunta, documentos)
-        if respuesta_meta:
-            return jsonify({'success': True, 'response': respuesta_meta})
+        # 🎯 PRIMERO verificar si es pregunta meta
+        if es_pregunta_meta(pregunta):
+            respuesta = responder_pregunta_meta(pregunta, documentos)
+            return jsonify({'success': True, 'response': respuesta})
         
-        # Si no es pregunta meta, buscar en documentos
-        respuesta_docs = buscar_en_documentos(pregunta, documentos)
-        return jsonify({'success': True, 'response': respuesta_docs})
+        # Si NO es pregunta meta, buscar en documentos
+        respuesta = buscar_en_documentos(pregunta, documentos)
+        return jsonify({'success': True, 'response': respuesta})
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error: {str(e)}'})
@@ -207,18 +207,5 @@ def chat():
 # ================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    
-    print("🚀 ChatBot DOCX Mejorado iniciado")
-    print("📂 Buscando archivos DOCX...")
-    
-    documentos = cargar_documentos_docx()
-    
-    if documentos:
-        print(f"✅ Documentos cargados: {len(documentos)}")
-        for doc in documentos.keys():
-            print(f"   📄 {doc}")
-    else:
-        print("💡 Sube archivos .docx a la carpeta 'documents/'")
-    
-    print(f"🌐 Servidor iniciado en puerto {port}")
+    print(f"🚀 ChatBot iniciado en puerto {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
