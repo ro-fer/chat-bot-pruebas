@@ -1,1 +1,2 @@
-pip install flask requests chromadb pymupdf
+flask==2.3.3
+gunicorn==21.2.0
