@@ -25,8 +25,7 @@ def extraer_texto_pdf(ruta_pdf):
             for pagina in pdf.pages:
                 texto_pagina = pagina.extract_text()
                 if texto_pagina:
-                    # Limpiar y estructurar el texto
-                    texto_pagina = re.sub(r'\n+', '\n', texto_pagina)  # Eliminar saltos múltiples
+                    texto_pagina = re.sub(r'\n+', '\n', texto_pagina)
                     texto += texto_pagina + "\n\n"
         return texto.strip() if texto else ""
     except Exception as e:
@@ -34,7 +33,7 @@ def extraer_texto_pdf(ruta_pdf):
         return ""
 
 def procesar_y_indexar_pdfs():
-    """Procesa PDFs y crea un índice de búsqueda"""
+    """Procesa PDFs y crea un índice de búsqueda mejorado"""
     documentos_indexados = {}
     
     for archivo_pdf in os.listdir(DOCUMENTS_DIR):
@@ -48,19 +47,29 @@ def procesar_y_indexar_pdfs():
                 texto = extraer_texto_pdf(ruta_pdf)
                 
                 if texto:
-                    # Guardar texto procesado
                     with open(ruta_txt, 'w', encoding='utf-8') as f:
                         f.write(texto)
                     
-                    # Indexar por secciones/párrafos
+                    # Mejor división en secciones
                     secciones = []
-                    # Dividir en párrafos significativos
-                    parrafos = [p.strip() for p in texto.split('\n\n') if len(p.strip()) > 30]
+                    # Dividir por puntos y saltos de línea significativos
+                    parrafos = [p.strip() for p in re.split(r'\.\s+|\n\n', texto) if len(p.strip()) > 20]
                     
                     for i, parrafo in enumerate(parrafos):
-                        # Extraer palabras clave del párrafo
-                        palabras = re.findall(r'\b[a-záéíóúñ]{4,}\b', parrafo.lower())
-                        palabras_clave = [p for p in palabras if p not in ['para', 'como', 'este', 'esta', 'esto']]
+                        # Limitar longitud de párrafos
+                        if len(parrafo) > 800:
+                            parrafo = parrafo[:800] + "..."
+                        
+                        # Extraer palabras clave más específicas
+                        palabras = re.findall(r'\b[a-záéíóúñ]{5,}\b', parrafo.lower())
+                        # Filtrar palabras comunes del dominio GDE
+                        stop_words = {'sistema', 'documental', 'digital', 'gestión', 'módulo', 'manual', 'escritorio', 'único'}
+                        palabras_clave = [p for p in palabras if p not in stop_words and len(p) > 4]
+                        
+                        # Tomar las 10 palabras más frecuentes
+                        if palabras_clave:
+                            palabras_frecuentes = Counter(palabras_clave).most_common(10)
+                            palabras_clave = [p[0] for p in palabras_frecuentes]
                         
                         secciones.append({
                             'id': f"{nombre_base}_p{i}",
@@ -74,14 +83,23 @@ def procesar_y_indexar_pdfs():
     
     return documentos_indexados
 
-# Variable global para el índice
 indice_documentos = {}
 
 def buscar_respuesta_inteligente(pregunta):
-    """Busca la respuesta más relevante usando matching inteligente"""
+    """Busca la respuesta más relevante con matching mejorado"""
     global indice_documentos
     
     pregunta_limpia = pregunta.lower().strip()
+    
+    # Mapeo de preguntas comunes a términos de búsqueda
+    mapeo_preguntas = {
+        'ingreso': ['ingreso', 'acceso', 'login', 'entrar', 'portal', 'url'],
+        'firma digital': ['firma', 'digital', 'certificado', 'firmar', 'electrónica'],
+        'trámites': ['trámite', 'procedimiento', 'proceso', 'paso'],
+        'contraseña': ['contraseña', 'password', 'olvidé', 'recuperar'],
+        'usuario': ['usuario', 'cuenta', 'registro', 'crear'],
+        'licencia': ['licencia', 'vacaciones', 'permiso', 'ausencia'],
+    }
     
     # Respuestas rápidas para conversación
     respuestas_rapidas = {
@@ -89,7 +107,7 @@ def buscar_respuesta_inteligente(pregunta):
         r'como estas|qué tal': "¡Perfecto! 😊 Listo para ayudarte con el Sistema GDE.",
         r'quien eres|qué eres': "Soy tu asistente especializado en el Sistema de Gestión Documental Electrónica.",
         r'gracias|thanks': "¡De nada! 😊 ¿Necesitas ayuda con algo más del GDE?",
-        r'adiós|chao|hasta luego': "¡Hasta luego! 👋 Recuerda que estoy aquí para ayudarte.",
+        r'adiós|chao|hasta luego': "¡Hasta luego! 👋",
     }
     
     # Verificar respuestas rápidas
@@ -97,74 +115,78 @@ def buscar_respuesta_inteligente(pregunta):
         if re.search(patron, pregunta_limpia):
             return respuesta
     
-    # Si es muy corta
-    if len(pregunta_limpia) < 3:
-        return "🤖 ¿Podrías contarme más específicamente en qué necesitas ayuda?"
+    # Expandir términos de búsqueda basado en la pregunta
+    terminos_busqueda = set()
+    palabras_pregunta = re.findall(r'\b[a-záéíóúñ]+\b', pregunta_limpia)
     
-    # Extraer palabras clave de la pregunta
-    palabras_pregunta = set(re.findall(r'\b[a-záéíóúñ]{4,}\b', pregunta_limpia))
-    palabras_pregunta = {p for p in palabras_pregunta if p not in [
-        'puede', 'puedo', 'donde', 'como', 'que', 'cual', 'para', 'porque'
-    ]}
+    for palabra in palabras_pregunta:
+        terminos_busqueda.add(palabra)
+        # Expandir usando el mapeo
+        for categoria, terminos in mapeo_preguntas.items():
+            if palabra in terminos:
+                terminos_busqueda.update(terminos)
     
-    if not palabras_pregunta:
-        return "🔍 ¿Podrías reformular tu pregunta? Por ejemplo: '¿Cómo ingreso al sistema GDE?' o '¿Qué trámites están disponibles?'"
+    # Filtrar palabras muy comunes
+    palabras_filtro = {'como', 'que', 'donde', 'cuando', 'para', 'por', 'con', 'los', 'las', 'del', 'al'}
+    terminos_busqueda = {t for t in terminos_busqueda if t not in palabras_filtro and len(t) > 3}
+    
+    if not terminos_busqueda:
+        return "🔍 ¿Podrías ser más específico? Por ejemplo: '¿Cómo ingreso al sistema?' o '¿Necesito firma digital?'"
     
     # Buscar en todos los documentos indexados
     mejores_resultados = []
     
     for doc_nombre, secciones in indice_documentos.items():
         for seccion in secciones:
-            # Calcular puntaje de relevancia
-            palabras_comunes = palabras_pregunta.intersection(seccion['palabras_clave'])
-            puntaje = len(palabras_comunes)
+            # Calcular puntaje de relevancia mejorado
+            puntaje = 0
             
-            # Bonus por coincidencia exacta de frases
-            for palabra in palabras_pregunta:
-                if palabra in seccion['texto'].lower():
-                    puntaje += 1
+            for termino in terminos_busqueda:
+                if termino in seccion['texto'].lower():
+                    # Puntaje más alto si el término está en palabras clave
+                    if termino in seccion['palabras_clave']:
+                        puntaje += 3
+                    else:
+                        puntaje += 1
+            
+            # Bonus por múltiples coincidencias
+            coincidencias_totales = sum(1 for termino in terminos_busqueda if termino in seccion['texto'].lower())
+            if coincidencias_totales > 1:
+                puntaje += coincidencias_totales * 2
             
             if puntaje > 0:
-                # Penalizar secciones muy largas o muy cortas
-                factor_longitud = 1.0
-                if seccion['longitud'] < 50 or seccion['longitud'] > 1000:
-                    factor_longitud = 0.7
+                # Ajustar por longitud (preferir párrafos de 100-500 caracteres)
+                if 100 <= seccion['longitud'] <= 500:
+                    puntaje *= 1.5
+                elif seccion['longitud'] > 800:
+                    puntaje *= 0.7
                 
-                puntaje_ajustado = puntaje * factor_longitud
-                mejores_resultados.append((puntaje_ajustado, seccion['texto'], doc_nombre))
+                mejores_resultados.append((puntaje, seccion['texto'], doc_nombre))
     
     # Ordenar por relevancia y tomar los mejores
     mejores_resultados.sort(reverse=True, key=lambda x: x[0])
     
     if mejores_resultados:
-        # Tomar los 2 mejores resultados
-        resultados_finales = []
-        for puntaje, texto, doc_nombre in mejores_resultados[:2]:
-            # Acortar si es muy largo
-            if len(texto) > 400:
-                oraciones = texto.split('.')
-                texto_acortado = '.'.join(oraciones[:3]) + '.' if len(oraciones) > 3 else texto[:400] + "..."
-                texto = texto_acortado
-            
-            resultados_finales.append(f"📄 **{doc_nombre}**:\n{texto}")
+        # Tomar solo el MEJOR resultado para evitar repetición
+        mejor_puntaje, mejor_texto, mejor_doc = mejores_resultados[0]
         
-        respuesta = "\n\n---\n\n".join(resultados_finales)
+        # Resumir el texto si es muy largo
+        if len(mejor_texto) > 300:
+            oraciones = mejor_texto.split('.')
+            texto_resumido = '.'.join(oraciones[:2]) + '.' if len(oraciones) > 2 else mejor_texto[:300] + "..."
+            mejor_texto = texto_resumido
         
-        # Agregar sugerencias si el puntaje no es muy alto
-        if mejores_resultados[0][0] < 2:
-            respuesta += "\n\n💡 **Sugerencia:** Si no es lo que buscabas, intenta ser más específico con términos como 'ingreso', 'trámites', 'firma digital', etc."
+        respuesta = f"📄 **{mejor_doc}**:\n{mejor_texto}"
+        
+        # Agregar contexto si el puntaje es bajo
+        if mejor_puntaje < 3:
+            respuesta += "\n\n💡 **Sugerencia:** Si no es la información que buscas, intenta ser más específico."
         
         return respuesta
     else:
-        # No se encontraron resultados
-        sugerencias = [
-            "• '¿Cómo ingresar al sistema GDE?'",
-            "• '¿Qué documentos necesito para un trámite?'", 
-            "• '¿Cómo funciona la firma digital?'",
-            "• '¿Dónde encuentro el manual de usuario?'",
-            "• '¿Qué hacer si olvidé mi contraseña?'"
-        ]
-        return f"🔍 No encontré información específica sobre: '{pregunta}'\n\n💡 **Puedes preguntar:**\n" + "\n".join(sugerencias)
+        # No se encontraron resultados - sugerencias específicas
+        terminos_sugeridos = "', '".join(list(terminos_busqueda)[:3])
+        return f"🔍 No encontré información específica sobre '{terminos_sugeridos}'.\n\n💡 **Puedes preguntar sobre:** ingreso al sistema, firma digital, trámites disponibles, recuperar contraseña, o licencias."
 
 # ================================
 # RUTAS PRINCIPALES
@@ -188,36 +210,21 @@ def chat():
     except Exception as e:
         return jsonify({"success": False, "error": f"Error: {str(e)}"})
 
-@app.route('/api/status')
-def status():
-    """Endpoint para ver el estado del sistema"""
-    pdfs = [f for f in os.listdir(DOCUMENTS_DIR) if f.endswith('.pdf')]
-    total_secciones = sum(len(secciones) for secciones in indice_documentos.values())
-    
-    return jsonify({
-        "estado": "activo",
-        "pdfs_cargados": pdfs,
-        "documentos_indexados": list(indice_documentos.keys()),
-        "total_secciones": total_secciones,
-        "mensaje": f"✅ Sistema listo con {len(pdfs)} PDF(s) y {total_secciones} secciones indexadas"
-    })
-
 # ================================
 # INICIALIZACIÓN
 # ================================
 print("🚀 Iniciando ChatBot GDE Mejorado...")
 print("📂 Cargando y indexando PDFs...")
 
-# Cargar e indexar todos los PDFs
 indice_documentos = procesar_y_indexar_pdfs()
 
 if indice_documentos:
     total_secciones = sum(len(secciones) for secciones in indice_documentos.values())
     print(f"✅ Sistema listo: {len(indice_documentos)} documento(s) con {total_secciones} secciones indexadas")
 else:
-    print("⚠️ No se pudieron cargar PDFs. El chatbot funcionará en modo básico.")
+    print("⚠️ No se pudieron cargar PDFs.")
 
-print("🔧 Servicio listo en http://0.0.0.0:5000")
+print("🔧 Servicio listo!")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
