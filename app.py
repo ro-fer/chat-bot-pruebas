@@ -102,7 +102,7 @@ def responder_pregunta_meta(tipo_pregunta, pregunta_original, documentos):
 📚 **Documentos cargados:** {len(documentos_lista)}
 💡 **Tip:** Haz preguntas completas para mejores resultados
 
-**Ejemplo:** En lugar de "licencia" pregunta "¿Cómo gestiono una licencia?""""
+**Ejemplo:** En lugar de "licencia" pregunta "¿Cómo gestiono una licencia?"""
     
     elif tipo_pregunta == 'que_preguntar':
         ejemplos = [
