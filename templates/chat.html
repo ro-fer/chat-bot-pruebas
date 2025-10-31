@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat - Manual Escritorio Único</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f6f9; display: flex; justify-content: center; padding: 40px; }
+    .chat-container { width: 80%; max-width: 700px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #006633; }
+    #messages { height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    .user { color: #0059b3; font-weight: bold; }
+    .bot { color: #009933; font-weight: bold; }
+    input { width: 80%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+    button { padding: 10px 15px; background-color: #009933; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background-color: #007a29; }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <h1>💬 Asistente del Manual Escritorio Único</h1>
+    <div id="messages"></div>
+    <input id="prompt" placeholder="Escribe tu pregunta sobre el manual..." onkeypress="if(event.key==='Enter') enviar()" />
+    <button onclick="enviar()">Enviar</button>
+  </div>
+
+  <script>
+    async function enviar() {
+      const input = document.getElementById("prompt");
+      const msgBox = document.getElementById("messages");
+      const prompt = input.value.trim();
+      if (!prompt) return;
+
+      msgBox.innerHTML += `<p class='user'>🧑 Tú: ${prompt}</p>`;
+      input.value = "";
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        msgBox.innerHTML += `<p class='bot'>🤖 Bot: ${data.response}</p>`;
+      } else {
+        msgBox.innerHTML += `<p class='bot' style='color:red;'>❌ Error: ${data.error}</p>`;
+      }
+
+      msgBox.scrollTop = msgBox.scrollHeight;
+    }
+  </script>
+</body>
+</html>
