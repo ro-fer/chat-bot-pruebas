@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 import os
-import re
+import pdfplumber
 from pathlib import Path
 
 app = Flask(__name__)
@@ -14,24 +14,18 @@ os.makedirs(DOCUMENTS_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 
 # ================================
-# PROCESADOR DE PDFs (Versión LIVIANA)
+# PROCESADOR DE PDFs CON PDFPLUMBER
 # ================================
-def extraer_texto_pdf_simple(ruta_pdf):
-    """Extrae texto básico de PDF sin dependencias pesadas"""
+def extraer_texto_pdf(ruta_pdf):
+    """Extrae texto de PDF usando pdfplumber"""
     try:
-        # Intentar con PyMuPDF si está disponible
-        try:
-            import fitz
-            doc = fitz.open(ruta_pdf)
-            texto = ""
-            for pagina in doc:
-                texto += pagina.get_text() + "\n"
-            doc.close()
-            return texto
-        except ImportError:
-            # Fallback: usar pdfminer (más liviano)
-            from pdfminer.high_level import extract_text
-            return extract_text(ruta_pdf)
+        texto = ""
+        with pdfplumber.open(ruta_pdf) as pdf:
+            for pagina in pdf.pages:
+                texto_pagina = pagina.extract_text()
+                if texto_pagina:
+                    texto += texto_pagina + "\n"
+        return texto if texto else "❌ No se pudo extraer texto del PDF"
     except Exception as e:
         return f"❌ Error procesando PDF: {str(e)}"
 
@@ -45,17 +39,15 @@ def procesar_todos_los_pdfs():
             ruta_pdf = os.path.join(DOCUMENTS_DIR, archivo_pdf)
             ruta_txt = os.path.join(PROCESSED_DIR, f"{nombre_base}.txt")
             
-            # Procesar PDF y guardar texto
             if os.path.exists(ruta_pdf):
-                texto = extraer_texto_pdf_simple(ruta_pdf)
+                print(f"📖 Procesando: {archivo_pdf}")
+                texto = extraer_texto_pdf(ruta_pdf)
                 
                 # Guardar versión procesada
                 with open(ruta_txt, 'w', encoding='utf-8') as f:
                     f.write(texto)
                 
-                # Agregar a base de conocimiento
-                base_conocimiento[nombre_base] = texto[:1000] + "..."  # Solo preview
-                
+                base_conocimiento[nombre_base] = texto[:500] + "..."
                 print(f"✅ PDF procesado: {archivo_pdf}")
     
     return base_conocimiento
@@ -74,21 +66,22 @@ def buscar_en_pdfs(pregunta):
                 
                 # Búsqueda simple por palabras clave
                 palabras = pregunta.lower().split()
-                coincidencias = sum(1 for palabra in palabras if palabra in contenido.lower())
+                coincidencias = [palabra for palabra in palabras if palabra in contenido.lower()]
                 
-                if coincidencias > 0:
-                    # Extraer contexto alrededor de las coincidencias
+                if coincidencias:
+                    # Encontrar párrafo con coincidencias
                     lineas = contenido.split('\n')
                     for i, linea in enumerate(lineas):
-                        if any(palabra in linea.lower() for palabra in palabras):
-                            contexto = "\n".join(lineas[max(0, i-1):min(len(lineas), i+2)])
-                            resultados.append(f"📄 {archivo_txt}:\n{contexto}\n")
+                        if any(palabra in linea.lower() for palabra in coincidencias):
+                            contexto = "\n".join(lineas[max(0, i-1):min(len(lineas), i+3)])
+                            nombre_doc = archivo_txt.replace('.txt', '')
+                            resultados.append(f"📄 **{nombre_doc}**:\n{contexto}\n")
                             break
                             
             except Exception as e:
                 print(f"Error leyendo {archivo_txt}: {e}")
     
-    return resultados if resultados else ["ℹ️ Información no encontrada en la documentación."]
+    return resultados if resultados else ["🔍 No encontré información específica sobre eso en la documentación."]
 
 # ================================
 # RUTAS PRINCIPALES
@@ -106,9 +99,8 @@ def chat():
         return jsonify({"success": False, "error": "Por favor escribe una pregunta"})
 
     try:
-        # Buscar en todos los PDFs procesados
         resultados = buscar_en_pdfs(pregunta)
-        respuesta = "🔍 **Resultados de la búsqueda:**\n\n" + "\n---\n".join(resultados)
+        respuesta = "🤖 **Resultados de la búsqueda:**\n\n" + "\n---\n".join(resultados)
         
         return jsonify({"success": True, "response": respuesta})
         
@@ -117,32 +109,25 @@ def chat():
 
 @app.route('/api/status')
 def status():
-    """Endpoint para ver el estado de los PDFs procesados"""
-    pdfs = os.listdir(DOCUMENTS_DIR)
-    procesados = os.listdir(PROCESSED_DIR)
+    """Endpoint para ver el estado de los PDFs"""
+    pdfs = [f for f in os.listdir(DOCUMENTS_DIR) if f.endswith('.pdf')]
+    procesados = [f for f in os.listdir(PROCESSED_DIR) if f.endswith('.txt')]
     
     return jsonify({
         "pdfs_en_carpeta": pdfs,
         "pdfs_procesados": procesados,
-        "total_pdfs": len(pdfs),
-        "total_procesados": len(procesados)
+        "mensaje": f"✅ {len(procesados)} de {len(pdfs)} PDFs procesados"
     })
 
 # ================================
 # INICIALIZACIÓN
 # ================================
 print("🚀 Iniciando chatbot multi-PDF...")
-print("📂 Procesando PDFs...")
-
-# Procesar PDFs al inicio (solo los nuevos)
-base_conocimiento = procesar_todos_los_pdfs()
-
-if base_conocimiento:
+if os.path.exists(DOCUMENTS_DIR) and os.listdir(DOCUMENTS_DIR):
+    base_conocimiento = procesar_todos_los_pdfs()
     print(f"✅ {len(base_conocimiento)} PDF(s) procesado(s)")
-    for nombre, preview in base_conocimiento.items():
-        print(f"   📄 {nombre}: {preview[:100]}...")
 else:
-    print("⚠️ No se encontraron PDFs en la carpeta 'documents/'")
+    print("⚠️ No hay PDFs en la carpeta 'documents/'")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
