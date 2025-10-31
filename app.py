@@ -52,24 +52,46 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# BÚSQUEDA INTELIGENTE EN DOCX
+# BÚSQUEDA INTELIGENTE MEJORADA
 # ================================
+def procesar_pregunta_meta(pregunta, documentos):
+    """Procesa preguntas sobre el chatbot mismo"""
+    pregunta_limpia = pregunta.lower().strip()
+    documentos_lista = list(documentos.keys())
+    
+    # Preguntas sobre el chatbot
+    if any(palabra in pregunta_limpia for palabra in ['qué puedes', 'qué sabes', 'qué haces', 'para qué sirves']):
+        return f"🤖 **Soy tu asistente de documentos**\n\nPuedo ayudarte a buscar información en tus archivos DOCX.\n\n📂 **Documentos cargados:** {documentos_lista}\n\n💡 **Puedes preguntarme sobre:**\n• Contenido de los documentos\n• Temas específicos\n• Información técnica\n• Procedimientos\n\nSolo haz una pregunta completa y buscaré en los documentos."
+    
+    if any(palabra in pregunta_limpia for palabra in ['qué preguntar', 'qué puedo preguntar', 'preguntas posibles']):
+        doc_ejemplo = documentos_lista[0] if documentos_lista else "tus documentos"
+        return f"❓ **Puedes preguntarme sobre:**\n\n• '¿Qué información hay sobre [tema]?'\n• '¿Cómo funciona el sistema?'\n• '¿Qué son los datos personales?'\n• 'Explicame sobre licencias'\n• '¿Dónde encuentro soporte técnico?'\n• 'Información sobre firma digital'\n\n📄 **Documento disponible:** {doc_ejemplo}\n\nSolo necesito preguntas completas, no palabras sueltas."
+    
+    if any(palabra in pregunta_limpia for palabra in ['cuántos documentos', 'qué documentos', 'documentos cargados']):
+        return f"📂 **Documentos cargados ({len(documentos_lista)}):**\n\n" + "\n".join([f"• {doc}" for doc in documentos_lista])
+    
+    if 'quién eres' in pregunta_limpia or 'qué eres' in pregunta_limpia:
+        return "🤖 **Soy tu asistente inteligente**\n\nPuedo leer y buscar información en tus documentos DOCX. Solo necesito que me hagas preguntas completas para encontrar la información que buscas."
+    
+    # Si no es pregunta meta, devolver None para buscar en documentos
+    return None
+
 def buscar_en_documentos(pregunta, documentos):
     """Busca en todos los documentos DOCX cargados"""
     pregunta_limpia = pregunta.lower().strip()
     
     # 🚨 Una sola palabra = No entiendo
     if len(pregunta_limpia.split()) <= 1:
-        return None
+        return "❌ No entiendo la pregunta. Por favor haz una pregunta completa."
     
     palabras_clave = set(re.findall(r'\b[a-záéíóúñ]{4,}\b', pregunta_limpia))
     
     # Filtrar palabras muy comunes
-    palabras_filtro = {'sobre', 'sobre el', 'sobre la', 'sobre los', 'sobre las', 'como', 'que', 'donde'}
+    palabras_filtro = {'sobre', 'sobre el', 'sobre la', 'sobre los', 'sobre las', 'como', 'que', 'donde', 'puedo', 'preguntar'}
     palabras_clave = {p for p in palabras_clave if p not in palabras_filtro}
     
     if not palabras_clave:
-        return None
+        return "🤔 ¿Podrías ser más específico? Por ejemplo: '¿Cómo ingreso al sistema?' o '¿Qué son los datos personales?'"
     
     resultados = []
     
@@ -108,7 +130,19 @@ def buscar_en_documentos(pregunta, documentos):
     
     # Ordenar por relevancia
     resultados.sort(key=lambda x: x['relevancia'], reverse=True)
-    return resultados
+    
+    if resultados:
+        respuesta = f"🔍 **Encontré esto sobre '{pregunta}':**\n\n"
+        
+        for i, resultado in enumerate(resultados[:2]):  # Máximo 2 resultados
+            respuesta += f"📄 **{resultado['documento']}:**\n{resultado['contenido']}\n\n"
+            
+            if i < len(resultados) - 1:
+                respuesta += "---\n\n"
+        
+        return respuesta
+    else:
+        return f"🤔 No encontré información específica sobre '{pregunta}'.\n\n💡 **Sugerencias:**\n• '¿Cómo funciona el sistema?'\n• 'Información sobre licencias'\n• '¿Qué son los datos personales?'"
 
 # ================================
 # RUTAS PRINCIPALES
@@ -156,46 +190,17 @@ def chat():
                 'response': "¡De nada! 😊 ¿Necesitas buscar algo más en los documentos?"
             })
         
-        # Buscar en documentos
-        resultados = buscar_en_documentos(pregunta, documentos)
+        # Primero verificar si es pregunta sobre el chatbot
+        respuesta_meta = procesar_pregunta_meta(pregunta, documentos)
+        if respuesta_meta:
+            return jsonify({'success': True, 'response': respuesta_meta})
         
-        if resultados:
-            respuesta = f"🔍 **Encontré esto sobre '{pregunta}':**\n\n"
-            
-            for i, resultado in enumerate(resultados[:2]):  # Máximo 2 resultados
-                respuesta += f"📄 **{resultado['documento']}:**\n{resultado['contenido']}\n\n"
-                
-                if i < len(resultados) - 1:
-                    respuesta += "---\n\n"
-            
-            return jsonify({'success': True, 'response': respuesta})
-        else:
-            return jsonify({
-                'success': True,
-                'response': f"🤔 No encontré información específica sobre '{pregunta}' en los documentos.\n\n📂 **Documentos disponibles:** {list(documentos.keys())}"
-            })
+        # Si no es pregunta meta, buscar en documentos
+        respuesta_docs = buscar_en_documentos(pregunta, documentos)
+        return jsonify({'success': True, 'response': respuesta_docs})
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error: {str(e)}'})
-
-@app.route('/api/documents')
-def list_documents():
-    """Endpoint para ver los documentos cargados"""
-    documentos = cargar_documentos_docx()
-    return jsonify({
-        'documentos_cargados': list(documentos.keys()),
-        'total': len(documentos),
-        'tipo': 'DOCX'
-    })
-
-@app.route('/health')
-def health():
-    documentos = cargar_documentos_docx()
-    return jsonify({
-        'status': 'healthy',
-        'documentos_cargados': len(documentos),
-        'documentos': list(documentos.keys())
-    })
 
 # ================================
 # INICIALIZACIÓN
@@ -203,7 +208,7 @@ def health():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     
-    print("🚀 ChatBot DOCX iniciado")
+    print("🚀 ChatBot DOCX Mejorado iniciado")
     print("📂 Buscando archivos DOCX...")
     
     documentos = cargar_documentos_docx()
