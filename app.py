@@ -7,6 +7,7 @@ import requests
 app = Flask(__name__)
 
 # ================================
+
 # CONFIGURACIÓN
 # ================================
 DOCUMENTS_DIR = "documents"
