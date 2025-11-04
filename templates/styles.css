@@ -9,7 +9,7 @@ background: #c59fdf;
 }
 body { 
     font-family: Arial, sans-serif; 
-    background: #f4f6f9; display:flex; 
+    background: #232d4f; display:flex; 
     justify-content: center; 
     padding: 40px; 
 }
@@ -23,7 +23,7 @@ body {
 }
 h1 { 
     text-align: center; 
-    color: #006633; 
+    color: #232d4f; 
 }
 #messages { 
     height: 400px; 
