@@ -3,22 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chat - Manual Escritorio Único</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f4f6f9; display: flex; justify-content: center; padding: 40px; }
-    .chat-container { width: 80%; max-width: 700px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    h1 { text-align: center; color: #006633; }
-    #messages { height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
-    .user { color: #0059b3; font-weight: bold; }
-    .bot { color: #009933; font-weight: bold; }
-    input { width: 80%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
-    button { padding: 10px 15px; background-color: #009933; color: white; border: none; border-radius: 5px; cursor: pointer; }
-    button:hover { background-color: #007a29; }
-  </style>
+  <title>Chat - Pruebas PD</title>
+  <link rel="stylesheet" href="./styles/estilos.css" />
 </head>
 <body>
   <div class="chat-container">
-    <h1>💬 Asistente del Manual Escritorio Único</h1>
+    <h1>💬 Asistente de Punto Digital</h1>
     <div id="messages"></div>
     <input id="prompt" placeholder="Escribe tu pregunta sobre el manual..." onkeypress="if(event.key==='Enter') enviar()" />
     <button onclick="enviar()">Enviar</button>
