@@ -2,8 +2,6 @@ from flask import Flask, request, jsonify, render_template, send_from_directory,
 import os
 import re
 from docx import Document
-import requests
-import io
 
 app = Flask(__name__)
 
@@ -55,52 +53,6 @@ def list_documents():
     return html
 
 # ================================
-# CARGA DESDE GITLAB PAGES
-# ================================
-def cargar_documentos_desde_gitlab():
-    """Carga documentos desde GitLab Pages privado"""
-    
-    # URL base de tu GitLab Pages
-    GITLAB_PAGES_URL = "https://documents-group1.gitlab.io/documentos-privados-chatbot"
-    
-    # Lista de tus documentos (usa los nombres exactos)
-    documentos_nombres = [
-        "Manual%20de%20Procedimientos%20de%20Punto%20Digital%20-%2000%20-%20%20%E2%80%9CGesti%C3%B3n%20de%20Puntos%20Digitales%E2%80%9D.docx",
-        "Manual%20de%20Procedimientos%20de%20Punto%20Digital%20-%2001%20-%20%E2%80%9CGesti%C3%B3n%20de%20la%20demanda%20de%20Puntos%20Digitales%E2%80%9D.docx",
-        "Manual%20de%20Procedimientos%20de%20Punto%20Digital%20-%2002%20-%20%20%E2%80%9CAn%C3%A1lisis%20de%20proyectos%20de%20Puntos%20Digitales%E2%80%9D.docx"
-    ]
-    
-    documentos = {}
-    
-    for nombre_archivo in documentos_nombres:
-        try:
-            # Descargar desde GitLab Pages
-            url = f"{GITLAB_PAGES_URL}/{nombre_archivo}"
-            response = requests.get(url)
-            
-            if response.status_code == 200:
-                # Procesar el DOCX desde memoria
-                doc_file = io.BytesIO(response.content)
-                doc = Document(doc_file)
-                
-                texto_completo = ""
-                for paragraph in doc.paragraphs:
-                    if paragraph.text.strip():
-                        texto_completo += paragraph.text + "\n\n"
-                
-                # Usar nombre legible como clave
-                nombre_legible = nombre_archivo.replace('%20', ' ').replace('%E2%80%9C', '"').replace('%E2%80%9D', '"').replace('%C3%B3n', 'ón').replace('%C3%A1lisis', 'álisis')
-                documentos[nombre_legible] = texto_completo.strip()
-                print(f"✅ Cargado: {nombre_legible}")
-            else:
-                print(f"❌ Error descargando {nombre_archivo}: {response.status_code}")
-                
-        except Exception as e:
-            print(f"❌ Error procesando {nombre_archivo}: {str(e)}")
-    
-    return documentos
-
-# ================================
 # PROCESADOR DE DOCX
 # ================================
 def procesar_docx(ruta_archivo):
@@ -118,8 +70,22 @@ def procesar_docx(ruta_archivo):
         return f"❌ Error procesando DOCX: {str(e)}"
 
 def cargar_documentos_docx():
-    """Carga documentos desde GitLab Pages"""
-    return cargar_documentos_desde_gitlab()
+    """Carga todos los archivos DOCX de la carpeta local"""
+    documentos = {}
+    
+    if not os.path.exists(DOCUMENTS_DIR):
+        os.makedirs(DOCUMENTS_DIR)
+        return documentos
+    
+    for archivo in os.listdir(DOCUMENTS_DIR):
+        if archivo.lower().endswith('.docx'):
+            ruta_archivo = os.path.join(DOCUMENTS_DIR, archivo)
+            texto = procesar_docx(ruta_archivo)
+            
+            if texto and not texto.startswith("❌ Error"):
+                documentos[archivo] = texto
+    
+    return documentos
 
 # ================================
 # DETECCIÓN FLEXIBLE DE PREGUNTAS META
@@ -289,13 +255,13 @@ def chat():
         if not pregunta:
             return jsonify({'success': False, 'error': 'Por favor escribe una pregunta'})
         
-        # Cargar documentos desde GitLab
+        # Cargar documentos locales
         documentos = cargar_documentos_docx()
         
         if not documentos:
             return jsonify({
                 'success': True,
-                'response': "📂 No se pudieron cargar los documentos desde GitLab."
+                'response': "📂 No hay archivos DOCX en la carpeta 'documents/'."
             })
         
         # Respuestas rápidas
@@ -337,6 +303,6 @@ def chat():
 # ================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 ChatBot con GitLab Pages iniciado en puerto {port}")
-    print(f"📁 Documentos cargados desde: https://documents-group1.gitlab.io/documentos-privados-chatbot/")
+    print(f"🚀 ChatBot con documentos locales iniciado en puerto {port}")
+    print(f"📁 Ruta documentos: http://localhost:{port}/documentos/")
     app.run(host='0.0.0.0', port=port, debug=False)
