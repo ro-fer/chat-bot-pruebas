@@ -8,7 +8,10 @@
 </head>
 <body>
   <div class="chat-container">
-    <h1>💬 Asistente de Punto Digital</h1>
+    <div class="header-with-logo">
+      <img src="logo_pd.png" alt="Punto Digital" class="logo">
+      <h1>Asistente de Punto Digital</h1>
+    </div>
     <div id="messages"></div>
     <input id="prompt" placeholder="Escribe tu pregunta sobre el manual..." onkeypress="if(event.key==='Enter') enviar()" />
     <button onclick="enviar()">Enviar</button>
