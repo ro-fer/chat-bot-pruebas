@@ -69,22 +69,40 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# GROQ API - LLaMA 3
+# GROQ API - LLaMA 3 (MEJORADO)
 # ================================
 def preguntar_groq(pregunta, contexto_documentos):
     """Usa Groq con Llama 3 para respuestas inteligentes"""
     
     api_key = os.environ.get('GROQ_API_KEY')
     
-    if not api_key or api_key == 'tu_api_key_aqui':
+    if not api_key:
         return "❌ Error: No hay API key configurada. Por favor configura GROQ_API_KEY en Railway."
     
-    # Preparar contexto de documentos
+    # Preparar contexto de documentos (más inteligente)
     contexto = ""
+    total_docs = len(contexto_documentos)
+    
     for doc_nombre, contenido in contexto_documentos.items():
-        # Limitar contenido para no exceder tokens
+        # Tomar las partes más relevantes del documento
         lineas = contenido.split('\n')
-        contenido_breve = '\n'.join(lineas[:50])  # Primeras 50 líneas
+        lineas_relevantes = []
+        
+        # Buscar secciones importantes
+        for i, linea in enumerate(lineas):
+            linea_limpia = linea.lower().strip()
+            if any(keyword in linea_limpia for keyword in 
+                  ['objetivo', 'alcance', 'proceso', 'roles', 'equipo', 'funciones', 'responsabilidad']):
+                # Tomar esta línea y las siguientes 3
+                for j in range(i, min(i+4, len(lineas))):
+                    if lineas[j].strip():
+                        lineas_relevantes.append(lineas[j])
+        
+        # Si no encontró secciones, tomar primeras líneas
+        if not lineas_relevantes:
+            lineas_relevantes = lineas[:20]
+        
+        contenido_breve = '\n'.join(lineas_relevantes[:30])  # Máximo 30 líneas
         contexto += f"--- DOCUMENTO: {doc_nombre} ---\n{contenido_breve}\n\n"
     
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -93,16 +111,16 @@ def preguntar_groq(pregunta, contexto_documentos):
         "Content-Type": "application/json"
     }
     
-    prompt = f"""Eres un asistente especializado en documentos técnicos de Puntos Digitales.
+    prompt = f"""Eres un asistente especializado en documentos técnicos sobre procedimientos  de Puntos Digitales, programa que pertenece a la subsecretaria de Tecnologias de la informacion y las comunicaciones de Argentina.
 
-INFORMACIÓN DE LOS DOCUMENTOS:
+INFORMACIÓN DE LOS DOCUMENTOS ({total_docs} documentos cargados):
 {contexto}
 
-INSTRUCCIONES:
-- Responde ÚNICAMENTE con información que esté en los documentos proporcionados
-- Si no encuentras la información en los documentos, di claramente "No encontré esta información en los documentos"
-- Sé preciso y conciso
-- Usa el mismo lenguaje técnico que los documentos
+INSTRUCCIONES IMPORTANTES:
+1. Responde ÚNICAMENTE con información que esté en los documentos proporcionados
+2. Si no encuentras la información, di claramente "No encuentro esta información específica en los documentos"
+3. Para preguntas sobre los documentos mismos, responde basado en lo que sabes de ellos
+4. Sé preciso, conciso y útil
 
 PREGUNTA DEL USUARIO: {pregunta}
 
@@ -113,7 +131,7 @@ RESPUESTA:"""
         "messages": [
             {
                 "role": "system", 
-                "content": "Eres un asistente técnico especializado en documentación de Puntos Digitales. Solo respondes con información verificada en los documentos proporcionados."
+                "content": "Eres un asistente técnico especializado en documentación de Puntos Digitales. Eres preciso, conciso y solo usas información verificada de los documentos."
             },
             {
                 "role": "user", 
@@ -131,9 +149,9 @@ RESPUESTA:"""
             resultado = response.json()
             return resultado["choices"][0]["message"]["content"]
         else:
-            return f"❌ Error en la API Groq: {response.status_code}"
+            return f"❌ Error en Groq API: {response.status_code} - {response.text}"
     except Exception as e:
-        return f"❌ Error de conexión con Groq: {str(e)}"
+        return f"❌ Error de conexión: {str(e)}"
 
 # ================================
 # RUTAS PRINCIPALES
@@ -166,10 +184,10 @@ def chat():
         if any(saludo in pregunta_lower for saludo in ['hola', 'buenos días', 'buenas tardes', 'buenas']):
             return jsonify({
                 'success': True,
-                'response': f"¡Hola! 👋 Soy tu asistente con IA. Tengo {len(documentos)} documento(s) cargados. ¿En qué puedo ayudarte?"
+                'response': f"¡Hola! 👋 Soy tu asistente con IA avanzada. Tengo {len(documentos)} documento(s) cargados. ¿En qué puedo ayudarte?"
             })
         
-        # Usar Groq para todas las preguntas
+        # Usar Groq para procesar la pregunta
         respuesta = preguntar_groq(pregunta, documentos)
         return jsonify({'success': True, 'response': respuesta})
         
