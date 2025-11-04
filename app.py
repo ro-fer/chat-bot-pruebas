@@ -139,7 +139,68 @@ def buscar_seccion_completa(concepto, documentos):
     for doc_nombre, contenido in documentos.items():
         lineas = contenido.split('\n')
         
-        # Buscar por título de sección
+        # BUSQUEDA ESPECÍFICA PARA ROLES - MOSTRAR TODO EL CONTENIDO
+        if concepto in ['roles', 'equipos']:
+            contenido_completo = f"📄 **{doc_nombre} - Todos los Roles y Equipos:**\n\n"
+            contenido_encontrado = False
+            
+            # Buscar la sección "Roles / Funciones"
+            for i, linea in enumerate(lineas):
+                if 'roles / funciones' in linea.lower():
+                    contenido_completo += f"**{linea.strip()}**\n\n"
+                    j = i + 1
+                    
+                    # Tomar TODO el contenido hasta la próxima sección importante
+                    while j < len(lineas):
+                        linea_actual = lineas[j].strip()
+                        
+                        # Detener si encontramos nueva sección importante
+                        if (linea_actual and 
+                            any(seccion in linea_actual.lower() for seccion in 
+                                ['objetivo', 'alcance', 'proceso', 'glosario', 'lineamientos', 'ciclos']) and
+                            len(linea_actual) < 100):
+                            break
+                            
+                        if linea_actual:
+                            contenido_completo += linea_actual + "\n\n"
+                        j += 1
+                    
+                    contenido_encontrado = True
+                    break
+            
+            # Si no encontró "Roles / Funciones", buscar todos los equipos individualmente
+            if not contenido_encontrado:
+                equipos = [
+                    'Dirección del Programa',
+                    'Equipo de Proyectos',
+                    'Equipo de Gestión de Stock', 
+                    'Equipo de Soporte Técnico TIC',
+                    'Equipo de Imagen',
+                    'Equipo de Monitoreo y Vinculación'
+                ]
+                
+                for equipo in equipos:
+                    for i, linea in enumerate(lineas):
+                        if equipo.lower() in linea.lower():
+                            contenido_completo += f"**{linea.strip()}**\n\n"
+                            # Tomar descripción del equipo
+                            j = i + 1
+                            lineas_tomadas = 0
+                            while j < len(lineas) and lineas_tomadas < 10:
+                                if lineas[j].strip() and len(lineas[j].strip()) > 10:
+                                    contenido_completo += lineas[j] + "\n"
+                                    lineas_tomadas += 1
+                                j += 1
+                            contenido_completo += "\n" + "═" * 60 + "\n\n"
+                            contenido_encontrado = True
+            
+            if contenido_encontrado:
+                ultima_busqueda = 'roles'
+                if len(contenido_completo) > 4000:
+                    contenido_completo = contenido_completo[:4000] + "\n\n... (contenido recortado - usa 'cuéntame más' para ver el resto)"
+                return contenido_completo.strip()
+        
+        # Búsqueda normal para otros conceptos
         for i, linea in enumerate(lineas):
             linea_limpia = linea.lower().strip()
             
@@ -147,19 +208,19 @@ def buscar_seccion_completa(concepto, documentos):
             palabras_buscar = sinonimos.get(concepto, [concepto])
             
             for palabra in palabras_buscar:
-                if palabra in linea_limpia and len(linea_limpia) < 100:  # Probablemente es un título
-                    # Tomar contenido COMPLETO de la sección hasta el próximo título
-                    contenido_seccion = linea + "\n\n"  # Incluir el título
+                if palabra in linea_limpia and len(linea_limpia) < 100:
+                    # Tomar contenido COMPLETO de la sección
+                    contenido_seccion = f"**{linea.strip()}**\n\n"
                     j = i + 1
                     
                     while j < len(lineas):
                         linea_actual = lineas[j].strip()
                         
-                        # Detener si encontramos el próximo título importante
+                        # Detener si encontramos nueva sección
                         if (linea_actual and 
                             any(titulo in linea_actual.lower() for titulo in 
                                 ['equipo', 'objetivo', 'alcance', 'proceso', 'roles', 'glosario', 'lineamientos', 'ciclos']) and
-                            len(linea_actual) < 100 and j > i + 2):  # Es probablemente un título
+                            len(linea_actual) < 100 and j > i + 2):
                             break
                         
                         if linea_actual:
@@ -168,72 +229,11 @@ def buscar_seccion_completa(concepto, documentos):
                     
                     if len(contenido_seccion.strip()) > len(linea.strip()):
                         ultima_busqueda = concepto
-                        # Limitar el tamaño si es muy grande
                         if len(contenido_seccion) > 3000:
-                            contenido_seccion = contenido_seccion[:3000] + "\n\n... (contenido recortado - usa 'cuéntame más' para ver el resto)"
+                            contenido_seccion = contenido_seccion[:3000] + "\n\n... (contenido recortado)"
                         return f"📄 **{doc_nombre}:**\n\n{contenido_seccion.strip()}"
-        
-        # Búsqueda alternativa para equipos/roles
-        if concepto in ['equipos', 'roles']:
-            contenido_equipos = f"📄 **{doc_nombre} - Equipos y Roles:**\n\n"
-            equipos_encontrados = False
-            
-            # Buscar todas las secciones de equipos
-            secciones_equipos = [
-                'Dirección del Programa',
-                'Equipo de Proyectos',
-                'Equipo de Gestión de Stock',
-                'Equipo de Soporte Técnico TIC', 
-                'Equipo de Imagen',
-                'Equipo de Monitoreo y Vinculación'
-            ]
-            
-            for i, linea in enumerate(lineas):
-                for seccion in secciones_equipos:
-                    if seccion.lower() in linea.lower():
-                        # Tomar descripción del equipo
-                        descripcion = linea + "\n"
-                        k = i + 1
-                        lineas_tomadas = 0
-                        
-                        while k < len(lineas) and lineas_tomadas < 8:  # Tomar hasta 8 líneas
-                            if lineas[k].strip() and len(lineas[k].strip()) > 10:
-                                descripcion += lineas[k] + "\n"
-                                lineas_tomadas += 1
-                            k += 1
-                        
-                        contenido_equipos += descripcion + "\n" + "─" * 50 + "\n\n"
-                        equipos_encontrados = True
-            
-            if equipos_encontrados:
-                ultima_busqueda = 'equipos'
-                if len(contenido_equipos) > 3500:
-                    contenido_equipos = contenido_equipos[:3500] + "\n\n... (contenido recortado)"
-                return contenido_equipos.strip()
-    
-    # Búsqueda por contenido si no encontró sección específica
-    for palabra in sinonimos.get(concepto, [concepto]):
-        if palabra in contenido.lower():
-            # Buscar párrafos que contengan el término
-            parrafos = contenido.split('\n\n')
-            contenido_encontrado = f"📄 **{doc_nombre} - Información sobre {concepto.title()}:**\n\n"
-            parrafos_encontrados = 0
-            
-            for parrafo in parrafos:
-                if palabra in parrafo.lower() and len(parrafo) > 50:
-                    contenido_encontrado += parrafo.strip() + "\n\n" + "─" * 40 + "\n\n"
-                    parrafos_encontrados += 1
-                    if parrafos_encontrados >= 3:  # Máximo 3 párrafos
-                        break
-            
-            if parrafos_encontrados > 0:
-                ultima_busqueda = concepto
-                if len(contenido_encontrado) > 3000:
-                    contenido_encontrado = contenido_encontrado[:3000] + "\n\n... (contenido recortado)"
-                return contenido_encontrado.strip()
     
     return None
-
 def buscar_en_documentos(pregunta, documentos):
     """Busca en documentos de forma inteligente con contexto"""
     global ultima_busqueda
