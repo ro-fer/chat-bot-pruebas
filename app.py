@@ -332,14 +332,14 @@ def es_pregunta_meta(pregunta):
     
     return None
 
-def responder_pregunta_meta(tipo_pregunta, pregunta_original, documentos):
+def responder_pregunta_meta(tipo_meta, pregunta_original, documentos):
     """Responde preguntas sobre el chatbot"""
     documentos_lista = list(documentos.keys())
     
-    if tipo_pregunta == 'quien_eres':
+    if tipo_meta == 'quien_eres':
         return "🤖 **¡Hola! Soy tu asistente inteligente**\n\nPuedo leer y buscar información en tus documentos DOCX. Estoy aquí para ayudarte a encontrar rápidamente la información que necesitas en tus manuales y documentos."
     
-    elif tipo_pregunta == 'que_puedes':
+    elif tipo_meta == 'que_puedes':
         return f"""🔍 **Puedo ayudarte a:**
 
 • 🔎 **Buscar información** en tus documentos
@@ -352,7 +352,7 @@ def responder_pregunta_meta(tipo_pregunta, pregunta_original, documentos):
 📚 **Documentos cargados:** {len(documentos_lista)}
 💡 **Tip:** Usa 'cuéntame más' después de una búsqueda para ampliar información"""
 
-    elif tipo_pregunta == 'que_preguntar':
+    elif tipo_meta == 'que_preguntar':
         ejemplos = [
             "¿Qué equipos o roles existen?",
             "¿Cuál es el objetivo del manual?",
@@ -374,7 +374,7 @@ def responder_pregunta_meta(tipo_pregunta, pregunta_original, documentos):
 
 📄 **Documentos disponibles:** {len(documentos_lista)}"""
     
-    elif tipo_pregunta == 'documentos':
+    elif tipo_meta == 'documentos':
         docs_texto = "\n".join([f"• {doc}" for doc in documentos_lista])
         return f"""📂 **Documentos cargados ({len(documentos_lista)}):**
 
@@ -434,7 +434,7 @@ def chat():
         # 🎯 DETECCIÓN FLEXIBLE de preguntas meta
         tipo_meta = es_pregunta_meta(pregunta)
         if tipo_meta:
-            respuesta = responder_pregunta_meta(tipo_pregunta, pregunta, documentos)
+            respuesta = responder_pregunta_meta(tipo_meta, pregunta, documentos)
             return jsonify({'success': True, 'response': respuesta})
         
         # Si NO es pregunta meta, buscar en documentos
