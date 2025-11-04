@@ -69,41 +69,57 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# GROQ API - LLaMA 3 (MEJORADO)
+# GROQ API - CON DEBUG MEJORADO
 # ================================
 def preguntar_groq(pregunta, contexto_documentos):
     """Usa Groq con Llama 3 para respuestas inteligentes"""
     
+    # DEBUG: Ver todas las variables de entorno
+    todas_variables = dict(os.environ)
+    variables_railway = {k: v for k, v in todas_variables.items() if 'GROQ' in k or 'API' in k}
+    
+    print("🔍 Variables de entorno relacionadas con API:", variables_railway)
+    
+    # Buscar la API key de diferentes maneras
     api_key = os.environ.get('GROQ_API_KEY')
     
     if not api_key:
-        return "❌ Error: No hay API key configurada. Por favor configura GROQ_API_KEY en Railway."
+        # Intentar alternativas
+        api_key = os.environ.get('GROQAPIKEY')
     
-    # Preparar contexto de documentos (más inteligente)
+    if not api_key:
+        # Verificar si hay alguna variable que contenga 'GROQ'
+        for key, value in todas_variables.items():
+            if 'GROQ' in key.upper():
+                api_key = value
+                print(f"🔍 Encontrada API key en variable: {key}")
+                break
+    
+    print(f"🔍 API Key encontrada: {'SÍ' if api_key else 'NO'}")
+    if api_key:
+        print(f"🔍 Longitud API key: {len(api_key)}")
+        print(f"🔍 Empieza con: {api_key[:10]}...")
+    
+    if not api_key:
+        return f"""❌ **Error de configuración**
+
+No se encontró la API key de Groq. Por favor:
+
+1. Ve a Railway → Settings → Variables
+2. Agrega esta variable:
+   **GROQ_API_KEY = gsk_tu_clave_real_aqui**
+
+3. Asegúrate de que la clave sea correcta
+4. Haz redeploy
+
+Variables encontradas: {list(variables_railway.keys())}"""
+    
+    # Preparar contexto
     contexto = ""
-    total_docs = len(contexto_documentos)
-    
     for doc_nombre, contenido in contexto_documentos.items():
-        # Tomar las partes más relevantes del documento
-        lineas = contenido.split('\n')
-        lineas_relevantes = []
-        
-        # Buscar secciones importantes
-        for i, linea in enumerate(lineas):
-            linea_limpia = linea.lower().strip()
-            if any(keyword in linea_limpia for keyword in 
-                  ['objetivo', 'alcance', 'proceso', 'roles', 'equipo', 'funciones', 'responsabilidad']):
-                # Tomar esta línea y las siguientes 3
-                for j in range(i, min(i+4, len(lineas))):
-                    if lineas[j].strip():
-                        lineas_relevantes.append(lineas[j])
-        
-        # Si no encontró secciones, tomar primeras líneas
-        if not lineas_relevantes:
-            lineas_relevantes = lineas[:20]
-        
-        contenido_breve = '\n'.join(lineas_relevantes[:30])  # Máximo 30 líneas
-        contexto += f"--- DOCUMENTO: {doc_nombre} ---\n{contenido_breve}\n\n"
+        # Tomar contenido relevante
+        lineas = contenido.split('\n')[:50]  # Primeras 50 líneas
+        contexto += f"--- DOCUMENTO: {doc_nombre} ---\n" + '\n'.join(lineas) + "\n\n"
     
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -111,45 +127,42 @@ def preguntar_groq(pregunta, contexto_documentos):
         "Content-Type": "application/json"
     }
     
-    prompt = f"""Eres un asistente especializado en documentos técnicos sobre procedimientos  de Puntos Digitales, programa que pertenece a la subsecretaria de Tecnologias de la informacion y las comunicaciones de Argentina.
+    prompt = f"""Eres un asistente especializado en documentos de Puntos Digitales.
 
-INFORMACIÓN DE LOS DOCUMENTOS ({total_docs} documentos cargados):
+DOCUMENTOS DISPONIBLES:
 {contexto}
 
-INSTRUCCIONES IMPORTANTES:
-1. Responde ÚNICAMENTE con información que esté en los documentos proporcionados
-2. Si no encuentras la información, di claramente "No encuentro esta información específica en los documentos"
-3. Para preguntas sobre los documentos mismos, responde basado en lo que sabes de ellos
-4. Sé preciso, conciso y útil
+Responde basado en la información de arriba. Si no está en los documentos, di que no lo encuentras.
 
-PREGUNTA DEL USUARIO: {pregunta}
+PREGUNTA: {pregunta}
 
 RESPUESTA:"""
     
     data = {
         "model": "llama3-8b-8192",
         "messages": [
-            {
-                "role": "system", 
-                "content": "Eres un asistente técnico especializado en documentación de Puntos Digitales. Eres preciso, conciso y solo usas información verificada de los documentos."
-            },
-            {
-                "role": "user", 
-                "content": prompt
-            }
+            {"role": "system", "content": "Eres un asistente técnico preciso."},
+            {"role": "user", "content": prompt}
         ],
         "temperature": 0.1,
-        "max_tokens": 1500,
-        "top_p": 0.9
+        "max_tokens": 1000
     }
     
     try:
+        print("🔄 Enviando solicitud a Groq...")
         response = requests.post(url, json=data, headers=headers, timeout=30)
+        print(f"📡 Respuesta de Groq: {response.status_code}")
+        
         if response.status_code == 200:
             resultado = response.json()
             return resultado["choices"][0]["message"]["content"]
+        elif response.status_code == 401:
+            return "❌ Error: API Key inválida o expirada. Verifica tu clave en Groq."
+        elif response.status_code == 429:
+            return "❌ Error: Límite de uso excedido. Intenta en un momento."
         else:
-            return f"❌ Error en Groq API: {response.status_code} - {response.text}"
+            return f"❌ Error de API: {response.status_code} - {response.text}"
+            
     except Exception as e:
         return f"❌ Error de conexión: {str(e)}"
 
@@ -178,16 +191,14 @@ def chat():
                 'response': "📂 No hay archivos DOCX en la carpeta 'documents/'."
             })
         
-        # Respuestas rápidas
-        pregunta_lower = pregunta.lower()
-        
-        if any(saludo in pregunta_lower for saludo in ['hola', 'buenos días', 'buenas tardes', 'buenas']):
+        # Respuesta rápida para debug
+        if pregunta.lower() == 'debug':
             return jsonify({
                 'success': True,
-                'response': f"¡Hola! 👋 Soy tu asistente con IA avanzada. Tengo {len(documentos)} documento(s) cargados. ¿En qué puedo ayudarte?"
+                'response': "🔧 Modo debug activado. Revisa los logs en Railway para ver las variables de entorno."
             })
         
-        # Usar Groq para procesar la pregunta
+        # Usar Groq
         respuesta = preguntar_groq(pregunta, documentos)
         return jsonify({'success': True, 'response': respuesta})
         
@@ -199,5 +210,10 @@ def chat():
 # ================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 ChatBot con Groq + Llama 3 iniciado en puerto {port}")
+    print(f"🚀 ChatBot con Groq iniciado en puerto {port}")
+    # Debug de variables al iniciar
+    groq_key = os.environ.get('GROQ_API_KEY')
+    print(f"🔍 GROQ_API_KEY al iniciar: {'✅ Configurada' if groq_key else '❌ No configurada'}")
+    if groq_key:
+        print(f"🔍 Longitud: {len(groq_key)} caracteres")
     app.run(host='0.0.0.0', port=port, debug=False)
