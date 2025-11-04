@@ -64,49 +64,49 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# BÚSQUEDA LOCAL MEJORADA - MEJORES SALTOS DE LÍNEA
+# BÚSQUEDA LOCAL MEJORADA - CON HTML PARA SALTOS DE LÍNEA
 # ================================
-def formatear_respuesta_legible(contenido, equipo):
-    """Formatea la respuesta con buenos saltos de línea"""
+def formatear_respuesta_html(contenido, equipo):
+    """Formatea la respuesta con HTML para saltos de línea"""
     lineas = contenido.split('\n')
-    respuesta_formateada = f"**🏢 {equipo.upper()}**\n\n"
+    respuesta_formateada = f"<strong>🏢 {equipo.upper()}</strong><br><br>"
     
     seccion_actual = ""
     for i, linea in enumerate(lineas):
         linea = linea.strip()
         if not linea:
-            respuesta_formateada += "\n"  # Doble salto de línea para párrafos
+            respuesta_formateada += "<br>"  # Salto de línea HTML
             continue
             
         # Limpiar líneas de marcadores
         if linea.startswith('===') or linea.startswith('---'):
-            respuesta_formateada += "\n"
+            respuesta_formateada += "<br>"
             continue
             
-        # Detectar secciones importantes - agregar espacio extra antes
+        # Detectar secciones importantes
         if 'coordinación' in linea.lower() and len(linea) < 25:
             seccion_actual = "coordinacion"
-            respuesta_formateada += "\n👨‍💼 **Coordinación**\n\n"
+            respuesta_formateada += "<br>👨‍💼 <strong>Coordinación</strong><br><br>"
             continue
         elif 'analistas' in linea.lower() and len(linea) < 25:
             seccion_actual = "analistas"
-            respuesta_formateada += "\n👩‍💻 **Analistas de Stock**\n\n"
+            respuesta_formateada += "<br>👩‍💻 <strong>Analistas de Stock</strong><br><br>"
             continue
         elif 'objetivos generales:' in linea.lower() or 'objetivos:' in linea.lower():
-            respuesta_formateada += "\n🎯 **Objetivos:**\n\n"
+            respuesta_formateada += "<br>🎯 <strong>Objetivos:</strong><br><br>"
             continue
         elif 'actividades' in linea.lower() and '/ tareas' in linea.lower():
-            respuesta_formateada += "\n📋 **Actividades:**\n\n"
+            respuesta_formateada += "<br>📋 <strong>Actividades:</strong><br><br>"
             continue
         
         # Formatear el contenido según el tipo
         if len(linea) > 10:
             if linea.startswith('•') or linea.startswith('●') or linea.startswith('-'):
                 texto_limpio = linea[1:].strip()
-                respuesta_formateada += f"  • {texto_limpio}\n\n"
+                respuesta_formateada += f"&nbsp;&nbsp;• {texto_limpio}<br>"
             else:
-                # Para párrafos normales, agregar doble salto de línea
-                respuesta_formateada += f"{linea}\n\n"
+                # Para párrafos normales
+                respuesta_formateada += f"{linea}<br>"
     
     return respuesta_formateada
 
@@ -164,18 +164,18 @@ def extraer_seccion_equipo_estructurada(contenido, equipo_buscado):
                     break
         
         if en_seccion and linea_limpia:
-            # Solo agregar contenido relevante (evitar títulos repetidos)
+            # Solo agregar contenido relevante
             if not any(palabra in linea_lower for palabra in ['equipo de', 'manual de', 'proceso general']):
                 seccion.append(linea_limpia)
     
     if equipo_encontrado:
-        contenido_limpio = '\n'.join(seccion[:30])  # Máximo 30 líneas
-        return formatear_respuesta_legible(contenido_limpio, equipo_buscado)
+        contenido_limpio = '\n'.join(seccion[:30])
+        return formatear_respuesta_html(contenido_limpio, equipo_buscado)
     
     return None
 
 def buscar_localmente_mejorada(pregunta, documentos):
-    """Búsqueda local mejorada con respuestas estructuradas"""
+    """Búsqueda local mejorada con respuestas en HTML"""
     pregunta_limpia = pregunta.lower()
     
     # Diccionario de palabras clave por equipo
@@ -191,7 +191,8 @@ def buscar_localmente_mejorada(pregunta, documentos):
     # Pregunta sobre documentos disponibles
     if any(p in pregunta_limpia for p in ['documento', 'cargado', 'archivo', 'disponible']):
         docs = list(documentos.keys())
-        return f"📂 **Documentos cargados ({len(docs)}):**\n\n" + "\n".join([f"• {d}" for d in docs])
+        doc_list = "<br>".join([f"• {d}" for d in docs])
+        return f"<strong>📂 Documentos cargados ({len(docs)}):</strong><br><br>{doc_list}"
     
     # Buscar equipo específico
     equipo_encontrado = None
@@ -207,44 +208,42 @@ def buscar_localmente_mejorada(pregunta, documentos):
             if seccion:
                 # Acortar el nombre del documento si es muy largo
                 doc_nombre_corto = doc_nombre[:50] + "..." if len(doc_nombre) > 50 else doc_nombre
-                resultados.append(f"**📄 {doc_nombre_corto}**\n\n{seccion}")
+                resultados.append(f"<strong>📄 {doc_nombre_corto}</strong><br><br>{seccion}")
                 break
     
     if resultados:
-        return "\n" + "\n\n".join(resultados)
+        return "<br>" + "<br><br>".join(resultados)
     
-    # Si no se encontró equipo específico, buscar información general
+    # Si no se encontró equipo específico
     for doc_nombre, contenido in documentos.items():
         if any(p in pregunta_limpia for p in ['equipo', 'rol', 'función', 'responsabilidad']):
-            # Buscar cualquier mención a equipos
             equipos_encontrados = []
             for equipo in palabras_clave.keys():
                 if equipo in contenido.lower():
                     equipos_encontrados.append(equipo.title())
             
             if equipos_encontrados:
-                return f"**📄 {doc_nombre}**\n\n🔍 **Equipos mencionados:** {', '.join(equipos_encontrados)}\n\n💡 *Pregunta por un equipo específico como 'stock' o 'proyectos' para más detalles*"
+                equipos_str = ", ".join(equipos_encontrados)
+                return f"<strong>📄 {doc_nombre}</strong><br><br>🔍 <strong>Equipos mencionados:</strong> {equipos_str}<br><br>💡 <em>Pregunta por un equipo específico como 'stock' o 'proyectos' para más detalles</em>"
     
-    return "🤔 No encontré información específica sobre ese tema.\n\nPrueba con: 'equipo de proyectos', 'soporte técnico', 'gestión de stock' o 'documentos cargados'"
+    return "🤔 No encontré información específica sobre ese tema.<br><br>Prueba con: 'equipo de proyectos', 'soporte técnico', 'gestión de stock' o 'documentos cargados'"
 
 # ================================
-# GROQ - VERSIÓN CON MEJORES SALTOS DE LÍNEA
+# GROQ - VERSIÓN CON HTML
 # ================================
 def preguntar_groq(pregunta, documentos):
-    """Versión con mensajes más naturales"""
+    """Versión que convierte saltos de línea a HTML"""
     
     api_key = os.environ.get('GROQ_API_KEY')
     
-    # Si no hay API key, usar directamente la búsqueda local sin mensajes técnicos
     if not api_key:
-        return buscar_localmente_mejorada(pregunta, documentos)
+        respuesta = buscar_localmente_mejorada(pregunta, documentos)
+        return respuesta
     
     try:
-        # CONTEXTO MÁS SELECTIVO
         contexto = "INFORMACIÓN SOBRE PUNTOS DIGITALES:\n\n"
         
         for doc_nombre, contenido in documentos.items():
-            # Para preguntas específicas, buscar contenido relevante
             if any(p in pregunta.lower() for p in ['stock', 'equipamiento', 'inventario']):
                 seccion_stock = extraer_seccion_equipo_estructurada(contenido, 'stock')
                 if seccion_stock:
@@ -258,7 +257,6 @@ def preguntar_groq(pregunta, documentos):
                 if seccion_soporte:
                     contexto += f"DOCUMENTO: {doc_nombre}\n{seccion_soporte}\n\n"
             else:
-                # Envío general limitado
                 lineas = contenido.split('\n')[:8]
                 contexto += f"DOCUMENTO: {doc_nombre}\n" + '\n'.join(lineas) + "\n\n"
         
@@ -276,11 +274,11 @@ def preguntar_groq(pregunta, documentos):
                 "messages": [
                     {
                         "role": "system", 
-                        "content": "Eres un asistente especializado en Puntos Digitales. Responde de forma CLARA, ESTRUCTURADA y CONCISA. Usa emojis y formato para hacerlo visual. Usa DOBLES SALTOS DE LÍNEA entre párrafos para mejor legibilidad. Basate SOLO en la información proporcionada."
+                        "content": "Eres un asistente especializado en Puntos Digitales. Responde de forma CLARA y ESTRUCTURADA. Usa HTML básico: <br> para saltos de línea y <strong> para negritas. Basate SOLO en la información proporcionada."
                     },
                     {
                         "role": "user", 
-                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA:"
+                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA (usa HTML):"
                     }
                 ],
                 "temperature": 0.1,
@@ -291,8 +289,11 @@ def preguntar_groq(pregunta, documentos):
         
         if response.status_code == 200:
             respuesta = response.json()["choices"][0]["message"]["content"]
-            # Asegurar que haya saltos de línea adecuados
-            return respuesta.replace('\n', '\n\n').replace('\n\n\n', '\n\n')
+            # Asegurar que tenga formato HTML básico
+            if '<br>' not in respuesta and '</strong>' not in respuesta:
+                # Convertir saltos de línea simples a HTML
+                respuesta = respuesta.replace('\n', '<br>')
+            return respuesta
         else:
             return buscar_localmente_mejorada(pregunta, documentos)
             
@@ -320,18 +321,17 @@ def chat():
         if not documentos:
             return jsonify({'success': True, 'response': "📂 No hay documentos cargados en la carpeta 'documents'."})
         
-        # Respuestas rápidas
+        # Respuestas rápidas con HTML
         if any(s in pregunta.lower() for s in ['hola', 'buenos días', 'buenas', 'hello', 'hi']):
             return jsonify({
                 'success': True, 
-                'response': f"¡Hola! 👋 Soy tu asistente especializado en Puntos Digitales.\n\nTengo {len(documentos)} documento(s) cargados.\n\n¿En qué puedo ayudarte?"
+                'response': f"¡Hola! 👋 Soy tu asistente especializado en Puntos Digitales.<br><br>Tengo {len(documentos)} documento(s) cargados.<br><br>¿En qué puedo ayudarte?"
             })
         
-        # Respuesta para despedida
         if any(s in pregunta.lower() for s in ['chao', 'adiós', 'bye', 'nos vemos', 'gracias']):
             return jsonify({
                 'success': True, 
-                'response': "¡Hasta luego! 👋\n\nFue un gusto ayudarte."
+                'response': "¡Hasta luego! 👋<br><br>Fue un gusto ayudarte."
             })
         
         # Usar Groq con fallback transparente
