@@ -10,6 +10,9 @@ app = Flask(__name__)
 # ================================
 DOCUMENTS_DIR = "documents"
 
+# Variable para mantener contexto de conversación
+ultima_busqueda = None
+
 # ================================
 # AUTENTICACIÓN PARA DOCUMENTACIÓN
 # ================================
@@ -88,137 +91,146 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# BÚSQUEDA MEJORADA
+# BÚSQUEDA INTELIGENTE MEJORADA
 # ================================
-def buscar_seccion_especifica(concepto, documentos):
-    """Busca secciones específicas del documento"""
+def buscar_contenido_extendido(termino, documentos, lineas_extra=10):
+    """Busca contenido más extenso alrededor de un término"""
+    global ultima_busqueda
+    
     for doc_nombre, contenido in documentos.items():
         lineas = contenido.split('\n')
         
         for i, linea in enumerate(lineas):
-            linea_lower = linea.lower()
-            
-            if concepto == 'objetivo' and ('objetivo' in linea_lower or 'propósito' in linea_lower):
-                # Tomar las siguientes 3-5 líneas después del título "Objetivo"
-                contenido_objetivo = ""
-                for j in range(i, min(i+6, len(lineas))):
-                    if lineas[j].strip() and len(lineas[j].strip()) > 10:
-                        contenido_objetivo += lineas[j] + "\n"
-                if contenido_objetivo:
-                    return f"📄 **{doc_nombre} - Objetivo:**\n{contenido_objetivo.strip()}"
-            
-            elif concepto == 'alcance' and 'alcance' in linea_lower:
-                contenido_alcance = ""
-                for j in range(i, min(i+6, len(lineas))):
-                    if lineas[j].strip() and len(lineas[j].strip()) > 10:
-                        contenido_alcance += lineas[j] + "\n"
-                if contenido_alcance:
-                    return f"📄 **{doc_nombre} - Alcance:**\n{contenido_alcance.strip()}"
-            
-            elif concepto == 'proceso' and ('proceso' in linea_lower or 'procedimiento' in linea_lower):
-                contenido_proceso = ""
-                for j in range(i, min(i+8, len(lineas))):
-                    if lineas[j].strip() and len(lineas[j].strip()) > 10:
-                        contenido_proceso += lineas[j] + "\n"
-                if contenido_proceso:
-                    return f"📄 **{doc_nombre} - Proceso:**\n{contenido_proceso.strip()}"
-        
-        # Si no encontró sección específica, buscar cualquier mención
-        if concepto in contenido.lower():
-            # Encontrar párrafo que contenga el concepto
-            parrafos = contenido.split('\n\n')
-            for parrafo in parrafos:
-                if concepto in parrafo.lower() and len(parrafo) > 50:
-                    if len(parrafo) > 300:
-                        parrafo = parrafo[:300] + "..."
-                    return f"📄 **{doc_nombre}:**\n{parrafo.strip()}"
+            if termino.lower() in linea.lower():
+                # Tomar líneas antes y después para contexto
+                inicio = max(0, i - 2)
+                fin = min(len(lineas), i + lineas_extra)
+                
+                contenido_extendido = ""
+                for j in range(inicio, fin):
+                    if lineas[j].strip() and len(lineas[j].strip()) > 5:
+                        contenido_extendido += lineas[j] + "\n"
+                
+                if contenido_extendido:
+                    ultima_busqueda = termino
+                    return f"📄 **{doc_nombre} - Información sobre {termino.title()}:**\n\n{contenido_extendido.strip()}"
     
-    return f"🤔 No encontré información específica sobre {concepto} en los documentos."
+    return None
 
-def buscar_en_documentos(pregunta, documentos):
-    """Busca en documentos de forma más inteligente y precisa"""
-    pregunta_limpia = pregunta.lower().strip()
+def buscar_seccion_completa(concepto, documentos):
+    """Busca secciones completas del documento"""
+    global ultima_busqueda
     
-    # Detectar preguntas específicas sobre conceptos clave
-    conceptos_especificos = {
+    # Mapeo de sinónimos mejorado
+    sinonimos = {
+        'equipos': ['equipos', 'roles', 'equipo', 'funciones', 'responsabilidades', 'áreas'],
         'objetivo': ['objetivo', 'propósito', 'finalidad', 'meta'],
         'alcance': ['alcance', 'aplicación', 'ámbito', 'cubre'],
-        'proceso': ['proceso', 'procedimiento', 'etapas', 'flujo'],
-        'roles': ['roles', 'funciones', 'responsabilidades', 'equipo'],
-        'glosario': ['glosario', 'definiciones', 'términos', 'conceptos']
+        'proceso': ['proceso', 'procedimiento', 'etapas', 'flujo', 'trabajo'],
+        'stock': ['stock', 'inventario', 'equipamiento', 'materiales'],
+        'soporte': ['soporte', 'técnico', 'tic', 'asistencia'],
+        'imagen': ['imagen', 'cartelería', 'identidad'],
+        'monitoreo': ['monitoreo', 'vinculación', 'seguimiento']
     }
     
-    # Verificar si es pregunta sobre concepto específico
-    for concepto, palabras_clave in conceptos_especificos.items():
-        for palabra in palabras_clave:
-            if palabra in pregunta_limpia:
-                # Buscar secciones específicas
-                return buscar_seccion_especifica(concepto, documentos)
+    for doc_nombre, contenido in documentos.items():
+        lineas = contenido.split('\n')
+        
+        # Buscar por título de sección
+        for i, linea in enumerate(lineas):
+            linea_limpia = linea.lower().strip()
+            
+            # Verificar todos los sinónimos para este concepto
+            palabras_buscar = sinonimos.get(concepto, [concepto])
+            
+            for palabra in palabras_buscar:
+                if palabra in linea_limpia and len(linea_limpia) < 100:  # Probablemente es un título
+                    # Tomar contenido completo de la sección
+                    contenido_seccion = ""
+                    j = i + 1
+                    while j < len(lineas) and (not lineas[j].strip() or 
+                          (len(lineas[j].strip()) > 10 and not any(s in lineas[j].lower() for s in ['equipo', 'objetivo', 'alcance', 'proceso', 'roles', 'glosario']))):
+                        if lineas[j].strip():
+                            contenido_seccion += lineas[j] + "\n"
+                        j += 1
+                    
+                    if contenido_seccion:
+                        ultima_busqueda = concepto
+                        return f"📄 **{doc_nombre} - {linea.strip()}:**\n\n{contenido_seccion.strip()}"
+        
+        # Búsqueda por contenido si no encontró título
+        for palabra in sinonimos.get(concepto, [concepto]):
+            if palabra in contenido.lower():
+                # Buscar párrafos que contengan el término
+                parrafos = contenido.split('\n\n')
+                for parrafo in parrafos:
+                    if palabra in parrafo.lower() and len(parrafo) > 30:
+                        if len(parrafo) > 500:
+                            parrafo = parrafo[:500] + "..."
+                        ultima_busqueda = concepto
+                        return f"📄 **{doc_nombre}:**\n{parrafo.strip()}"
     
-    # Búsqueda general mejorada
-    palabras_clave = set(re.findall(r'\b[a-záéíóúñ]{4,}\b', pregunta_limpia))
+    return None
+
+def buscar_en_documentos(pregunta, documentos):
+    """Busca en documentos de forma inteligente con contexto"""
+    global ultima_busqueda
+    
+    pregunta_limpia = pregunta.lower().strip()
+    
+    # Detectar preguntas de seguimiento
+    if any(palabra in pregunta_limpia for palabra in ['más', 'cuéntame más', 'amplía', 'detalla']):
+        if ultima_busqueda:
+            resultado = buscar_contenido_extendido(ultima_busqueda, documentos, 15)
+            if resultado:
+                return resultado
+        return "🤔 No tengo contexto previo. ¿Sobre qué tema específico quieres que amplíe información?"
+    
+    # Mapeo de preguntas comunes a conceptos
+    mapeo_preguntas = {
+        'equipos': ['equipos', 'equipo', 'quienes trabajan', 'áreas', 'departamentos'],
+        'roles': ['roles', 'funciones', 'responsabilidades', 'cargos'],
+        'proceso': ['proceso', 'cómo funciona', 'etapas', 'flujo'],
+        'stock': ['stock', 'inventario', 'equipamiento', 'materiales'],
+        'soporte': ['soporte', 'técnico', 'tic', 'asistencia'],
+        'objetivo': ['objetivo', 'para qué sirve', 'finalidad'],
+        'alcance': ['alcance', 'a qué aplica', 'ámbito']
+    }
+    
+    # Buscar coincidencia en preguntas comunes
+    for concepto, preguntas in mapeo_preguntas.items():
+        for pregunta_clave in preguntas:
+            if pregunta_clave in pregunta_limpia:
+                resultado = buscar_seccion_completa(concepto, documentos)
+                if resultado:
+                    return resultado
+    
+    # Búsqueda por palabras clave general
+    palabras_clave = set(re.findall(r'\b[a-záéíóúñ]{3,}\b', pregunta_limpia))
     
     palabras_filtro = {
         'sobre', 'como', 'que', 'donde', 'puedo', 'preguntar', 'para', 'por', 
-        'con', 'cual', 'cuáles', 'cuando', 'cómo', 'porque', 'tiene', 'tienen'
+        'con', 'cual', 'cuáles', 'cuando', 'cómo', 'porque', 'tiene', 'tienen',
+        'mas', 'más', 'información', 'cuéntame', 'amplia'
     }
     palabras_clave = {p for p in palabras_clave if p not in palabras_filtro}
     
-    if not palabras_clave:
-        return "🤔 ¿Podrías ser más específico? Por ejemplo: '¿Cuál es el objetivo del manual?' o '¿Qué roles existen?'"
+    if palabras_clave:
+        for palabra in palabras_clave:
+            resultado = buscar_seccion_completa(palabra, documentos)
+            if resultado:
+                return resultado
     
-    resultados = []
+    # Si no encuentra nada específico
+    sugerencias = [
+        "Pregunta sobre: 'equipos', 'roles', 'procesos', 'stock', 'soporte'",
+        "Usa términos como: 'objetivo', 'alcance', 'funciones'", 
+        "Ejemplos: '¿Qué equipos existen?', '¿Cómo funciona el proceso?'",
+        "Pide más información: 'cuéntame más sobre stock'"
+    ]
+    sugerencias_texto = "\n".join([f"• {sug}" for sug in sugerencias])
     
-    for doc_nombre, contenido in documentos.items():
-        # Buscar en secciones específicas primero
-        secciones = contenido.split('\n\n')
-        
-        for i, seccion in enumerate(secciones):
-            if len(seccion.strip()) < 30:
-                continue
-                
-            seccion_lower = seccion.lower()
-            
-            # Calcular relevancia
-            relevancia = 0
-            for palabra in palabras_clave:
-                if palabra in seccion_lower:
-                    # Más peso si la palabra está en título o inicio
-                    if seccion_lower.startswith(palabra) or any(titulo in seccion_lower for titulo in ['objetivo', 'alcance', 'proceso', 'roles']):
-                        relevancia += 3
-                    else:
-                        relevancia += 1
-            
-            if relevancia > 0:
-                # Encontrar la línea más relevante
-                lineas = seccion.split('\n')
-                for linea in lineas:
-                    if any(palabra in linea.lower() for palabra in palabras_clave):
-                        contenido_resumen = linea.strip()
-                        break
-                else:
-                    contenido_resumen = seccion.strip()
-                
-                if len(contenido_resumen) > 300:
-                    contenido_resumen = contenido_resumen[:300] + "..."
-                
-                resultados.append({
-                    'documento': doc_nombre,
-                    'contenido': contenido_resumen,
-                    'relevancia': relevancia
-                })
-                break  # Solo un resultado por documento
-    
-    # Ordenar y mostrar resultados
-    resultados.sort(key=lambda x: x['relevancia'], reverse=True)
-    
-    if resultados:
-        respuesta = f"🔍 **Encontré esto sobre '{pregunta}':**\n\n"
-        for resultado in resultados[:2]:  # Máximo 2 resultados
-            respuesta += f"📄 **{resultado['documento']}:**\n{resultado['contenido']}\n\n"
-        return respuesta
-    else:
-        return f"🤔 No encontré información específica sobre '{pregunta}'.\n\n💡 **Sugerencia:** Intenta con términos más específicos como 'objetivo', 'alcance', 'roles' o 'procesos'."
+    return f"🤔 No encontré información específica sobre '{pregunta}'.\n\n💡 **Sugerencias:**\n{sugerencias_texto}"
 
 # ================================
 # DETECCIÓN FLEXIBLE DE PREGUNTAS META
@@ -227,7 +239,6 @@ def es_pregunta_meta(pregunta):
     """Detecta preguntas sobre el chatbot de forma flexible"""
     pregunta_limpia = pregunta.lower().strip()
     
-    # Patrones flexibles para cada tipo de pregunta
     patrones = {
         'quien_eres': [
             r'quien eres', r'qué eres', r'que eres', r'quien sos', r'que sos',
@@ -250,7 +261,6 @@ def es_pregunta_meta(pregunta):
         ]
     }
     
-    # Verificar cada categoría
     for categoria, patrones_lista in patrones.items():
         for patron in patrones_lista:
             if re.search(patron, pregunta_limpia):
@@ -281,23 +291,23 @@ def responder_pregunta_meta(tipo_pregunta, pregunta_original, documentos):
     
     elif tipo_pregunta == 'que_preguntar':
         ejemplos = [
+            "¿Qué equipos o roles existen?",
             "¿Cuál es el objetivo del manual?",
             "¿Qué alcance tiene el documento?",
-            "¿Qué procesos se describen?",
-            "¿Qué roles existen en el equipo?",
+            "¿Cómo funciona el proceso de instalación?",
+            "¿Qué hace el equipo de stock?",
             "¿Cómo funciona el soporte técnico?",
-            "¿Qué es un Punto Digital?",
-            "¿Quiénes son los responsables del programa?"
+            "¿Qué es un Punto Digital?"
         ]
         ejemplos_texto = "\n".join([f"• {ej}" for ej in ejemplos])
-        return f"""❓ **Puedes preguntarme sobre cualquier tema de tus documentos:**
+        return f"""❓ **Puedes preguntarme sobre:**
 
 {ejemplos_texto}
 
 💡 **Consejos:**
-• Preguntas específicas → mejores respuestas
-• Usa términos como 'objetivo', 'alcance', 'proceso', 'roles'
-• Contexto → más relevante
+• Pregunta por 'equipos', 'roles', 'procesos', 'stock'
+• Usa 'cuéntame más' para ampliar información
+• Sé específico para mejores resultados
 
 📄 **Documentos disponibles:** {len(documentos_lista)}"""
     
@@ -376,6 +386,6 @@ def chat():
 # ================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 ChatBot con búsqueda mejorada iniciado en puerto {port}")
+    print(f"🚀 ChatBot con búsqueda inteligente iniciado en puerto {port}")
     print(f"📁 Ruta documentos: http://localhost:{port}/documentos/")
     app.run(host='0.0.0.0', port=port, debug=False)
