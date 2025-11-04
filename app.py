@@ -69,7 +69,7 @@ def cargar_documentos_docx():
 def formatear_respuesta_legible(contenido, equipo):
     """Formatea la respuesta para que sea más legible"""
     lineas = contenido.split('\n')
-    respuesta_formateada = f"**🏢 {equpo.upper()}**\n\n"
+    respuesta_formateada = f"**🏢 {equipo.upper()}**\n\n"
     
     seccion_actual = ""
     for linea in lineas:
