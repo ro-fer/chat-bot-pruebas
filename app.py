@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, render_template, send_from_directory,
 import os
 from docx import Document
 import requests
+import re
 
 app = Flask(__name__)
 DOCUMENTS_DIR = "documents"
@@ -63,62 +64,105 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# BÚSQUEDA LOCAL MEJORADA
+# BÚSQUEDA LOCAL MEJORADA - MÁS ESTRUCTURADA
 # ================================
-def extraer_seccion_equipo(contenido, equipo_buscado):
-    """Extrae la sección específica de un equipo"""
+def formatear_respuesta_legible(contenido, equipo):
+    """Formatea la respuesta para que sea más legible"""
+    lineas = contenido.split('\n')
+    respuesta_formateada = f"**🏢 {equpo.upper()}**\n\n"
+    
+    seccion_actual = ""
+    for linea in lineas:
+        linea = linea.strip()
+        if not linea:
+            continue
+            
+        # Detectar secciones importantes
+        if 'objetivos generales:' in linea.lower():
+            seccion_actual = "🎯 **Objetivos Generales:**\n"
+            respuesta_formateada += seccion_actual
+        elif 'actividades' in linea.lower() and '/ tareas' in linea.lower():
+            seccion_actual = "📋 **Actividades y Tareas:**\n"
+            respuesta_formateada += "\n" + seccion_actual
+        elif 'coordinación' in linea.lower() and len(linea) < 30:
+            seccion_actual = "👨‍💼 **Coordinación:**\n"
+            respuesta_formateada += "\n" + seccion_actual
+        elif 'analistas' in linea.lower() and len(linea) < 30:
+            seccion_actual = "👩‍💻 **Analistas:**\n"
+            respuesta_formateada += "\n" + seccion_actual
+        elif linea.startswith('•') or linea.startswith('●') or linea.startswith('-'):
+            respuesta_formateada += f"  • {linea[1:].strip()}\n"
+        elif len(linea) > 10 and not linea.endswith(':'):
+            if seccion_actual:
+                respuesta_formateada += f"  • {linea}\n"
+            else:
+                respuesta_formateada += f"{linea}\n"
+    
+    return respuesta_formateada
+
+def extraer_seccion_equipo_estructurada(contenido, equipo_buscado):
+    """Extrae la sección específica de un equipo de forma estructurada"""
     lineas = contenido.split('\n')
     en_seccion = False
     seccion = []
     equipo_encontrado = False
     
     for i, linea in enumerate(lineas):
-        linea_lower = linea.lower()
+        linea_limpia = linea.strip()
+        if not linea_limpia:
+            continue
+            
+        linea_lower = linea_limpia.lower()
         
         # Buscar el inicio de la sección del equipo
-        if equipo_buscado in linea_lower and any(palabra in linea_lower for palabra in ['equipo', 'rol', 'función', 'objetivo']):
+        if equipo_buscado in linea_lower and any(palabra in linea_lower for palabra in ['equipo', 'rol', 'función']):
             en_seccion = True
             equipo_encontrado = True
-            # Incluir algunas líneas anteriores para contexto
-            inicio = max(0, i-1)
-            seccion.extend(lineas[inicio:i])
+            seccion.append(f"=== {linea_limpia} ===")
+            continue
         
-        # Detectar fin de sección (nuevo equipo o sección)
-        elif en_seccion and linea.strip() and len(linea) > 5:
-            if any(p in linea_lower for p in ['equipo de', 'equipo ', 'proceso', '●', 'ciclos', 'lineamientos']):
+        # Buscar subsecciones dentro del equipo
+        if en_seccion:
+            if 'coordinación' in linea_lower and len(linea_limpia) < 25:
+                seccion.append(f"\n--- {linea_limpia} ---")
+                continue
+            elif 'analistas' in linea_lower and len(linea_limpia) < 25:
+                seccion.append(f"\n--- {linea_limpia} ---")
+                continue
+            elif 'objetivos generales:' in linea_lower:
+                seccion.append(f"\n**Objetivos:**")
+                continue
+            elif 'actividades' in linea_lower and '/ tareas' in linea_lower:
+                seccion.append(f"\n**Actividades:**")
+                continue
+        
+        # Detectar fin de sección (nuevo equipo o sección principal)
+        if en_seccion and len(linea_limpia) > 5:
+            if any(p in linea_lower for p in ['equipo de', 'equipo ', 'proceso general', 'ciclos', 'lineamientos']):
                 if equipo_buscado not in linea_lower:
                     break
+            # Evitar capturar otros equipos
+            otros_equipos = ['dirección', 'proyectos', 'stock', 'soporte', 'imagen', 'monitoreo']
+            for otro_equipo in otros_equipos:
+                if otro_equipo != equipo_buscado and otro_equipo in linea_lower and 'equipo' in linea_lower:
+                    break
         
-        if en_seccion and linea.strip():
-            if linea not in seccion:  # Evitar duplicados
-                seccion.append(linea)
+        if en_seccion and linea_limpia:
+            # Formatear mejor las listas
+            if linea_limpia.startswith('•') or linea_limpia.startswith('●') or linea_limpia.startswith('-'):
+                seccion.append(f"  • {linea_limpia[1:].strip()}")
+            elif len(linea_limpia) > 10:
+                seccion.append(linea_limpia)
     
-    return '\n'.join(seccion[:25]) if equipo_encontrado else None
+    if equipo_encontrado:
+        # Limitar la longitud y formatear
+        contenido_limpio = '\n'.join(seccion[:30])  # Máximo 30 líneas
+        return formatear_respuesta_legible(contenido_limpio, equipo_buscado)
+    
+    return None
 
-def extraer_todos_equipos(contenido):
-    """Extrae información de todos los equipos"""
-    equipos_principales = [
-        'dirección del programa',
-        'equipo de proyectos', 
-        'equipo de gestión de stock',
-        'equipo de soporte técnico tic',
-        'equipo de imagen',
-        'equipo de monitoreo y vinculación'
-    ]
-    
-    resultado = ""
-    for equipo in equipos_principales:
-        seccion = extraer_seccion_equipo(contenido, equipo)
-        if seccion:
-            # Acortar la sección para mostrar solo lo más relevante
-            lineas = seccion.split('\n')
-            resumen = '\n'.join(lineas[:8])  # Primeras 8 líneas
-            resultado += f"**{equpo.title()}:**\n{resumen}\n\n---\n\n"
-    
-    return resultado if resultado else None
-
-def buscar_localmente(pregunta, documentos):
-    """Búsqueda local mejorada para Puntos Digitales"""
+def buscar_localmente_mejorada(pregunta, documentos):
+    """Búsqueda local mejorada con respuestas estructuradas"""
     pregunta_limpia = pregunta.lower()
     
     # Diccionario de palabras clave por equipo
@@ -131,87 +175,89 @@ def buscar_localmente(pregunta, documentos):
         'monitoreo': ['monitoreo', 'vinculación', 'capacitación', 'evaluación', 'monitoreo y vinculación']
     }
     
-    resultados = []
+    # Pregunta sobre documentos disponibles
+    if any(p in pregunta_limpia for p in ['documento', 'cargado', 'archivo', 'disponible']):
+        docs = list(documentos.keys())
+        return f"📂 **Documentos cargados ({len(docs)}):**\n" + "\n".join([f"• {d}" for d in docs])
     
+    # Buscar equipo específico
+    equipo_encontrado = None
+    for equipo, keywords in palabras_clave.items():
+        if any(palabra in pregunta_limpia for palabra in keywords):
+            equipo_encontrado = equipo
+            break
+    
+    resultados = []
     for doc_nombre, contenido in documentos.items():
-        contenido_lower = contenido.lower()
-        
-        # Pregunta sobre documentos disponibles
-        if any(p in pregunta_limpia for p in ['documento', 'cargado', 'archivo', 'disponible']):
-            docs = list(documentos.keys())
-            return f"📂 **Documentos cargados ({len(docs)}):**\n" + "\n".join([f"• {d}" for d in docs])
-        
-        # Buscar equipos específicos
-        equipo_encontrado = None
-        for equipo, keywords in palabras_clave.items():
-            if any(palabra in pregunta_limpia for palabra in keywords):
-                equipo_encontrado = equipo
-                break
-        
         if equipo_encontrado:
-            seccion = extraer_seccion_equipo(contenido, equipo_encontrado)
+            seccion = extraer_seccion_equipo_estructurada(contenido, equipo_encontrado)
             if seccion:
-                resultados.append(f"📄 **{doc_nombre} - {equipo_encontrado.title()}:**\n\n{seccion}")
+                resultados.append(f"📄 **{doc_nombre}**\n\n{seccion}")
+                break  # Solo un resultado por equipo
         
-        # Búsqueda general de roles si no hay coincidencia específica
-        if not resultados and any(p in pregunta_limpia for p in ['equipo', 'rol', 'función', 'responsabilidad', 'cargo']):
-            equipos = extraer_todos_equipos(contenido)
-            if equipos:
-                resultados.append(f"📄 **{doc_nombre} - Resumen de Equipos:**\n\n{equipos}")
-                break
-        
-        # Búsqueda por contenido general
-        if not resultados:
-            # Buscar términos específicos en el contenido
-            terminos_buscar = pregunta_limpia.split()
-            coincidencias = []
-            for termino in terminos_buscar:
-                if len(termino) > 4 and termino in contenido_lower:
-                    # Encontrar líneas con el término
-                    lineas = contenido.split('\n')
-                    for i, linea in enumerate(lineas):
-                        if termino in linea.lower():
-                            inicio = max(0, i-1)
-                            fin = min(len(lineas), i+3)
-                            contexto = '\n'.join(lineas[inicio:fin])
-                            coincidencias.append(contexto)
-                            if len(coincidencias) >= 3:
-                                break
+        # Búsqueda general si no se encontró equipo específico
+        if not resultados and any(p in pregunta_limpia for p in ['equipo', 'rol', 'función', 'responsabilidad']):
+            # Mostrar todos los equipos de forma resumida
+            equipos_info = []
+            for equipo in palabras_clave.keys():
+                seccion = extraer_seccion_equipo_estructurada(contenido, equipo)
+                if seccion:
+                    # Extraer solo los objetivos principales para el resumen
+                    lineas = seccion.split('\n')
+                    objetivos = []
+                    capturando_objetivos = False
+                    for linea in lineas:
+                        if 'objetivos:' in linea.lower():
+                            capturando_objetivos = True
+                            continue
+                        elif capturando_objetivos and linea.strip() and not linea.startswith('**'):
+                            if len(objetivos) < 2:  # Máximo 2 objetivos por equipo
+                                objetivos.append(linea.strip())
+                        elif capturando_objetivos and linea.startswith('**'):
+                            break
+                    
+                    if objetivos:
+                        equipos_info.append(f"• **{equipo.title()}:** {', '.join(objetivos)}")
             
-            if coincidencias:
-                resultados.append(f"📄 **{doc_nombre} - Coincidencias encontradas:**\n\n" + "\n...\n".join(coincidencias[:3]))
+            if equipos_info:
+                resultados.append(f"📄 **{doc_nombre} - Resumen de Equipos:**\n\n" + "\n".join(equipos_info))
+                break
     
     if resultados:
-        return "\n\n".join(resultados[:2])  # Máximo 2 resultados
+        return "\n\n" + "\n\n".join(resultados)
     
-    return "🤔 No encontré información específica en los documentos. Prueba con: 'equipo de proyectos', 'soporte técnico', 'gestión de stock', 'documentos cargados'"
+    return "🤔 No encontré información específica sobre ese tema. Prueba con: 'equipo de proyectos', 'soporte técnico', 'gestión de stock'"
 
 # ================================
-# GROQ - VERSIÓN ESTABLE
+# GROQ - VERSIÓN MEJORADA
 # ================================
 def preguntar_groq(pregunta, documentos):
-    """Versión estable de Groq - Contexto controlado"""
+    """Versión mejorada de Groq con mejor manejo de errores"""
     
     api_key = os.environ.get('GROQ_API_KEY')
     
     if not api_key:
-        return "⚠️ **Modo local** - Usando búsqueda básica\n\n" + buscar_localmente(pregunta, documentos)
+        return "⚠️ **Modo local**\n\n" + buscar_localmente_mejorada(pregunta, documentos)
     
-    # CONTEXTO MEJORADO - Enviamos contenido más relevante
-    contexto = "INFORMACIÓN DE DOCUMENTOS - MANUAL DE PUNTOS DIGITALES:\n"
+    # CONTEXTO MEJORADO - Enviamos contenido estructurado
+    contexto = "MANUAL DE PROCEDIMIENTOS - PUNTOS DIGITALES\n\n"
     for doc_nombre, contenido in documentos.items():
-        # Para preguntas sobre roles, enviamos secciones específicas
-        if any(p in pregunta.lower() for p in ['equipo', 'rol', 'función', 'cargo']):
-            # Extraer solo secciones de equipos
-            equipos_texto = extraer_todos_equipos(contenido)
-            if equipos_texto:
-                contexto += f"\n--- {doc_nombre} ---\n{equipos_texto}\n"
+        contexto += f"DOCUMENTO: {doc_nombre}\n"
+        contexto += "CONTENIDO RELEVANTE:\n"
+        
+        # Para preguntas sobre equipos, enviamos información estructurada
+        if any(p in pregunta.lower() for p in ['equipo', 'rol', 'función', 'stock', 'proyectos', 'soporte']):
+            equipos = ['dirección', 'proyectos', 'stock', 'soporte', 'imagen', 'monitoreo']
+            for equipo in equipos:
+                seccion = extraer_seccion_equipo_estructurada(contenido, equipo)
+                if seccion:
+                    contexto += f"\n--- {equipo.upper()} ---\n{seccion}\n"
         else:
-            # Envío normal (primeras 20 líneas)
-            lineas = contenido.split('\n')[:20]
-            contexto += f"\n--- {doc_nombre} ---\n" + '\n'.join(lineas) + "\n"
-    
-    print(f"🔍 Enviando a Groq... Contexto: {len(contexto)} chars")
+            # Envío normal limitado
+            lineas = contenido.split('\n')[:15]
+            contexto += '\n'.join(lineas) + "\n"
+        
+        contexto += "\n" + "="*50 + "\n"
     
     try:
         response = requests.post(
@@ -225,30 +271,29 @@ def preguntar_groq(pregunta, documentos):
                 "messages": [
                     {
                         "role": "system", 
-                        "content": "Eres un asistente especializado en el Programa Punto Digital. Responde en español de forma clara y concisa basándote solo en los documentos proporcionados. Si la información no está en los documentos, indica que no la tienes."
+                        "content": "Eres un asistente especializado. Responde en español de forma CLARA y BIEN ESTRUCTURADA. Usa negritas para títulos y emojis para hacerlo visual. Basate SOLO en la información proporcionada."
                     },
                     {
                         "role": "user", 
-                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA (basada solo en los documentos):"
+                        "content": f"INFORMACIÓN DE REFERENCIA:\n{contexto}\n\nPREGUNTA DEL USUARIO: {pregunta}\n\nPOR FAVOR RESPONDE DE FORMA ORGANIZADA Y FÁCIL DE LEER:"
                     }
                 ],
                 "temperature": 0.1,
-                "max_tokens": 800
+                "max_tokens": 1000
             },
-            timeout=20
+            timeout=25
         )
-        
-        print(f"📡 Respuesta Groq: {response.status_code}")
         
         if response.status_code == 200:
             return response.json()["choices"][0]["message"]["content"]
         else:
-            return f"❌ Error Groq {response.status_code}\n\n" + buscar_localmente(pregunta, documentos)
+            error_msg = f"❌ Error en la API. Usando búsqueda local...\n"
+            return error_msg + buscar_localmente_mejorada(pregunta, documentos)
             
     except requests.exceptions.Timeout:
-        return "⏰ Timeout - Groq no respondió\n\n" + buscar_localmente(pregunta, documentos)
+        return "⏰ Tiempo de espera agotado. Usando búsqueda local...\n" + buscar_localmente_mejorada(pregunta, documentos)
     except Exception as e:
-        return f"❌ Error: {str(e)}\n\n" + buscar_localmente(pregunta, documentos)
+        return f"🔧 Error técnico. Usando búsqueda local...\n" + buscar_localmente_mejorada(pregunta, documentos)
 
 # ================================
 # RUTAS PRINCIPALES
@@ -271,21 +316,14 @@ def chat():
         if not documentos:
             return jsonify({'success': True, 'response': "📂 No hay documentos cargados en la carpeta 'documents'."})
         
-        # Respuesta rápida para saludo
+        # Respuestas rápidas
         if any(s in pregunta.lower() for s in ['hola', 'buenos días', 'buenas', 'hello', 'hi']):
             return jsonify({
                 'success': True, 
                 'response': f"¡Hola! 👋 Soy tu asistente especializado en Puntos Digitales. Tengo {len(documentos)} documento(s) cargados. ¿En qué puedo ayudarte?"
             })
         
-        # Respuesta rápida para despedida
-        if any(s in pregunta.lower() for s in ['chao', 'adiós', 'bye', 'nos vemos']):
-            return jsonify({
-                'success': True, 
-                'response': "¡Hasta luego! 👋 Fue un gusto ayudarte."
-            })
-        
-        # Usar Groq con fallback a búsqueda local
+        # Usar Groq con fallback mejorado
         respuesta = preguntar_groq(pregunta, documentos)
         return jsonify({'success': True, 'response': respuesta})
         
@@ -301,10 +339,7 @@ if __name__ == '__main__':
     api_key = os.environ.get('GROQ_API_KEY')
     print(f"🔍 GROQ_API_KEY: {'✅ CONFIGURADA' if api_key else '❌ FALTANTE - Usando modo local'}")
     
-    # Verificar documentos
     documentos = cargar_documentos_docx()
     print(f"📄 Documentos cargados: {len(documentos)}")
-    for doc in documentos.keys():
-        print(f"   • {doc}")
     
     app.run(host='0.0.0.0', port=port, debug=False)
