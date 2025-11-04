@@ -64,47 +64,49 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# BÚSQUEDA LOCAL MEJORADA - FORMATEO MÁS LEGIBLE
+# BÚSQUEDA LOCAL MEJORADA - MEJORES SALTOS DE LÍNEA
 # ================================
 def formatear_respuesta_legible(contenido, equipo):
-    """Formatea la respuesta para que sea más legible y estructurada"""
+    """Formatea la respuesta con buenos saltos de línea"""
     lineas = contenido.split('\n')
     respuesta_formateada = f"**🏢 {equipo.upper()}**\n\n"
     
     seccion_actual = ""
-    for linea in lineas:
+    for i, linea in enumerate(lineas):
         linea = linea.strip()
         if not linea:
+            respuesta_formateada += "\n"  # Doble salto de línea para párrafos
             continue
             
         # Limpiar líneas de marcadores
         if linea.startswith('===') or linea.startswith('---'):
+            respuesta_formateada += "\n"
             continue
             
-        # Detectar secciones importantes
+        # Detectar secciones importantes - agregar espacio extra antes
         if 'coordinación' in linea.lower() and len(linea) < 25:
             seccion_actual = "coordinacion"
-            respuesta_formateada += "👨‍💼 **Coordinación**\n\n"
+            respuesta_formateada += "\n👨‍💼 **Coordinación**\n\n"
             continue
         elif 'analistas' in linea.lower() and len(linea) < 25:
             seccion_actual = "analistas"
             respuesta_formateada += "\n👩‍💻 **Analistas de Stock**\n\n"
             continue
         elif 'objetivos generales:' in linea.lower() or 'objetivos:' in linea.lower():
-            respuesta_formateada += "🎯 **Objetivos:**\n"
+            respuesta_formateada += "\n🎯 **Objetivos:**\n\n"
             continue
         elif 'actividades' in linea.lower() and '/ tareas' in linea.lower():
-            respuesta_formateada += "\n📋 **Actividades:**\n"
+            respuesta_formateada += "\n📋 **Actividades:**\n\n"
             continue
         
         # Formatear el contenido según el tipo
         if len(linea) > 10:
             if linea.startswith('•') or linea.startswith('●') or linea.startswith('-'):
                 texto_limpio = linea[1:].strip()
-                respuesta_formateada += f"  • {texto_limpio}\n"
+                respuesta_formateada += f"  • {texto_limpio}\n\n"
             else:
-                # Si es un párrafo normal, agregarlo como tal
-                respuesta_formateada += f"{linea}\n"
+                # Para párrafos normales, agregar doble salto de línea
+                respuesta_formateada += f"{linea}\n\n"
     
     return respuesta_formateada
 
@@ -118,6 +120,8 @@ def extraer_seccion_equipo_estructurada(contenido, equipo_buscado):
     for i, linea in enumerate(lineas):
         linea_limpia = linea.strip()
         if not linea_limpia:
+            if en_seccion:
+                seccion.append("")  # Salto de línea
             continue
             
         linea_lower = linea_limpia.lower()
@@ -127,21 +131,30 @@ def extraer_seccion_equipo_estructurada(contenido, equipo_buscado):
             en_seccion = True
             equipo_encontrado = True
             seccion.append(f"🔹 {linea_limpia}")
+            seccion.append("")  # Salto de línea
             continue
         
         # Detectar subsecciones dentro del equipo
         if en_seccion:
             if 'coordinación' in linea_lower and len(linea_limpia) < 25:
-                seccion.append(f"\n👨‍💼 {linea_limpia}")
+                seccion.append("")  # Salto de línea extra
+                seccion.append(f"👨‍💼 {linea_limpia}")
+                seccion.append("")  # Salto de línea
                 continue
             elif 'analistas' in linea_lower and len(linea_limpia) < 25:
-                seccion.append(f"\n👩‍💻 {linea_limpia}")
+                seccion.append("")  # Salto de línea extra
+                seccion.append(f"👩‍💻 {linea_limpia}")
+                seccion.append("")  # Salto de línea
                 continue
             elif 'objetivos generales:' in linea_lower:
-                seccion.append(f"\n🎯 Objetivos Generales:")
+                seccion.append("")  # Salto de línea
+                seccion.append(f"🎯 Objetivos Generales:")
+                seccion.append("")  # Salto de línea
                 continue
             elif 'actividades' in linea_lower and '/ tareas' in linea_lower:
-                seccion.append(f"\n📋 Actividades/Tareas:")
+                seccion.append("")  # Salto de línea
+                seccion.append(f"📋 Actividades/Tareas:")
+                seccion.append("")  # Salto de línea
                 continue
         
         # Detectar fin de sección
@@ -156,7 +169,7 @@ def extraer_seccion_equipo_estructurada(contenido, equipo_buscado):
                 seccion.append(linea_limpia)
     
     if equipo_encontrado:
-        contenido_limpio = '\n'.join(seccion[:25])  # Máximo 25 líneas
+        contenido_limpio = '\n'.join(seccion[:30])  # Máximo 30 líneas
         return formatear_respuesta_legible(contenido_limpio, equipo_buscado)
     
     return None
@@ -178,7 +191,7 @@ def buscar_localmente_mejorada(pregunta, documentos):
     # Pregunta sobre documentos disponibles
     if any(p in pregunta_limpia for p in ['documento', 'cargado', 'archivo', 'disponible']):
         docs = list(documentos.keys())
-        return f"📂 **Documentos cargados ({len(docs)}):**\n" + "\n".join([f"• {d}" for d in docs])
+        return f"📂 **Documentos cargados ({len(docs)}):**\n\n" + "\n".join([f"• {d}" for d in docs])
     
     # Buscar equipo específico
     equipo_encontrado = None
@@ -212,18 +225,19 @@ def buscar_localmente_mejorada(pregunta, documentos):
             if equipos_encontrados:
                 return f"**📄 {doc_nombre}**\n\n🔍 **Equipos mencionados:** {', '.join(equipos_encontrados)}\n\n💡 *Pregunta por un equipo específico como 'stock' o 'proyectos' para más detalles*"
     
-    return "🤔 No encontré información específica sobre ese tema. Prueba con: 'equipo de proyectos', 'soporte técnico', 'gestión de stock' o 'documentos cargados'"
+    return "🤔 No encontré información específica sobre ese tema.\n\nPrueba con: 'equipo de proyectos', 'soporte técnico', 'gestión de stock' o 'documentos cargados'"
 
 # ================================
-# GROQ - VERSIÓN MEJORADA
+# GROQ - VERSIÓN CON MEJORES SALTOS DE LÍNEA
 # ================================
 def preguntar_groq(pregunta, documentos):
-    """Versión mejorada de Groq con mejor manejo de errores"""
+    """Versión con mensajes más naturales"""
     
     api_key = os.environ.get('GROQ_API_KEY')
     
+    # Si no hay API key, usar directamente la búsqueda local sin mensajes técnicos
     if not api_key:
-        return "⚠️ **Modo local**\n\n" + buscar_localmente_mejorada(pregunta, documentos)
+        return buscar_localmente_mejorada(pregunta, documentos)
     
     try:
         # CONTEXTO MÁS SELECTIVO
@@ -232,13 +246,20 @@ def preguntar_groq(pregunta, documentos):
         for doc_nombre, contenido in documentos.items():
             # Para preguntas específicas, buscar contenido relevante
             if any(p in pregunta.lower() for p in ['stock', 'equipamiento', 'inventario']):
-                # Extraer solo secciones relacionadas con stock
                 seccion_stock = extraer_seccion_equipo_estructurada(contenido, 'stock')
                 if seccion_stock:
                     contexto += f"DOCUMENTO: {doc_nombre}\n{seccion_stock}\n\n"
+            elif any(p in pregunta.lower() for p in ['proyectos', 'implementación']):
+                seccion_proyectos = extraer_seccion_equipo_estructurada(contenido, 'proyectos')
+                if seccion_proyectos:
+                    contexto += f"DOCUMENTO: {doc_nombre}\n{seccion_proyectos}\n\n"
+            elif any(p in pregunta.lower() for p in ['soporte', 'técnico']):
+                seccion_soporte = extraer_seccion_equipo_estructurada(contenido, 'soporte')
+                if seccion_soporte:
+                    contexto += f"DOCUMENTO: {doc_nombre}\n{seccion_soporte}\n\n"
             else:
                 # Envío general limitado
-                lineas = contenido.split('\n')[:10]
+                lineas = contenido.split('\n')[:8]
                 contexto += f"DOCUMENTO: {doc_nombre}\n" + '\n'.join(lineas) + "\n\n"
         
         if len(contexto) > 3000:
@@ -255,7 +276,7 @@ def preguntar_groq(pregunta, documentos):
                 "messages": [
                     {
                         "role": "system", 
-                        "content": "Eres un asistente especializado en Puntos Digitales. Responde de forma CLARA, ESTRUCTURADA y CONCISA. Usa emojis y formato para hacerlo visual. Basate SOLO en la información proporcionada."
+                        "content": "Eres un asistente especializado en Puntos Digitales. Responde de forma CLARA, ESTRUCTURADA y CONCISA. Usa emojis y formato para hacerlo visual. Usa DOBLES SALTOS DE LÍNEA entre párrafos para mejor legibilidad. Basate SOLO en la información proporcionada."
                     },
                     {
                         "role": "user", 
@@ -265,16 +286,18 @@ def preguntar_groq(pregunta, documentos):
                 "temperature": 0.1,
                 "max_tokens": 800
             },
-            timeout=20
+            timeout=15
         )
         
         if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
+            respuesta = response.json()["choices"][0]["message"]["content"]
+            # Asegurar que haya saltos de línea adecuados
+            return respuesta.replace('\n', '\n\n').replace('\n\n\n', '\n\n')
         else:
-            return "🔧 **Usando búsqueda local...**\n" + buscar_localmente_mejorada(pregunta, documentos)
+            return buscar_localmente_mejorada(pregunta, documentos)
             
     except Exception as e:
-        return "🔧 **Usando búsqueda local...**\n" + buscar_localmente_mejorada(pregunta, documentos)
+        return buscar_localmente_mejorada(pregunta, documentos)
 
 # ================================
 # RUTAS PRINCIPALES
@@ -301,10 +324,17 @@ def chat():
         if any(s in pregunta.lower() for s in ['hola', 'buenos días', 'buenas', 'hello', 'hi']):
             return jsonify({
                 'success': True, 
-                'response': f"¡Hola! 👋 Soy tu asistente especializado en Puntos Digitales. Tengo {len(documentos)} documento(s) cargados. ¿En qué puedo ayudarte?"
+                'response': f"¡Hola! 👋 Soy tu asistente especializado en Puntos Digitales.\n\nTengo {len(documentos)} documento(s) cargados.\n\n¿En qué puedo ayudarte?"
             })
         
-        # Usar Groq con fallback mejorado
+        # Respuesta para despedida
+        if any(s in pregunta.lower() for s in ['chao', 'adiós', 'bye', 'nos vemos', 'gracias']):
+            return jsonify({
+                'success': True, 
+                'response': "¡Hasta luego! 👋\n\nFue un gusto ayudarte."
+            })
+        
+        # Usar Groq con fallback transparente
         respuesta = preguntar_groq(pregunta, documentos)
         return jsonify({'success': True, 'response': respuesta})
         
