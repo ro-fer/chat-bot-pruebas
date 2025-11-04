@@ -63,6 +63,130 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
+# BÚSQUEDA LOCAL MEJORADA
+# ================================
+def extraer_seccion_equipo(contenido, equipo_buscado):
+    """Extrae la sección específica de un equipo"""
+    lineas = contenido.split('\n')
+    en_seccion = False
+    seccion = []
+    equipo_encontrado = False
+    
+    for i, linea in enumerate(lineas):
+        linea_lower = linea.lower()
+        
+        # Buscar el inicio de la sección del equipo
+        if equipo_buscado in linea_lower and any(palabra in linea_lower for palabra in ['equipo', 'rol', 'función', 'objetivo']):
+            en_seccion = True
+            equipo_encontrado = True
+            # Incluir algunas líneas anteriores para contexto
+            inicio = max(0, i-1)
+            seccion.extend(lineas[inicio:i])
+        
+        # Detectar fin de sección (nuevo equipo o sección)
+        elif en_seccion and linea.strip() and len(linea) > 5:
+            if any(p in linea_lower for p in ['equipo de', 'equipo ', 'proceso', '●', 'ciclos', 'lineamientos']):
+                if equipo_buscado not in linea_lower:
+                    break
+        
+        if en_seccion and linea.strip():
+            if linea not in seccion:  # Evitar duplicados
+                seccion.append(linea)
+    
+    return '\n'.join(seccion[:25]) if equipo_encontrado else None
+
+def extraer_todos_equipos(contenido):
+    """Extrae información de todos los equipos"""
+    equipos_principales = [
+        'dirección del programa',
+        'equipo de proyectos', 
+        'equipo de gestión de stock',
+        'equipo de soporte técnico tic',
+        'equipo de imagen',
+        'equipo de monitoreo y vinculación'
+    ]
+    
+    resultado = ""
+    for equipo in equipos_principales:
+        seccion = extraer_seccion_equipo(contenido, equipo)
+        if seccion:
+            # Acortar la sección para mostrar solo lo más relevante
+            lineas = seccion.split('\n')
+            resumen = '\n'.join(lineas[:8])  # Primeras 8 líneas
+            resultado += f"**{equpo.title()}:**\n{resumen}\n\n---\n\n"
+    
+    return resultado if resultado else None
+
+def buscar_localmente(pregunta, documentos):
+    """Búsqueda local mejorada para Puntos Digitales"""
+    pregunta_limpia = pregunta.lower()
+    
+    # Diccionario de palabras clave por equipo
+    palabras_clave = {
+        'dirección': ['dirección', 'director', 'estrategia', 'dirección del programa'],
+        'proyectos': ['proyectos', 'analistas', 'implementación', 'inauguración', 'equipo de proyectos'],
+        'stock': ['stock', 'equipamiento', 'inventario', 'configuración', 'gestión de stock'],
+        'soporte': ['soporte', 'técnico', 'tic', 'instalación', 'ingeniería', 'soporte técnico'],
+        'imagen': ['imagen', 'cartelería', 'señalética', 'equipo de imagen'],
+        'monitoreo': ['monitoreo', 'vinculación', 'capacitación', 'evaluación', 'monitoreo y vinculación']
+    }
+    
+    resultados = []
+    
+    for doc_nombre, contenido in documentos.items():
+        contenido_lower = contenido.lower()
+        
+        # Pregunta sobre documentos disponibles
+        if any(p in pregunta_limpia for p in ['documento', 'cargado', 'archivo', 'disponible']):
+            docs = list(documentos.keys())
+            return f"📂 **Documentos cargados ({len(docs)}):**\n" + "\n".join([f"• {d}" for d in docs])
+        
+        # Buscar equipos específicos
+        equipo_encontrado = None
+        for equipo, keywords in palabras_clave.items():
+            if any(palabra in pregunta_limpia for palabra in keywords):
+                equipo_encontrado = equipo
+                break
+        
+        if equipo_encontrado:
+            seccion = extraer_seccion_equipo(contenido, equipo_encontrado)
+            if seccion:
+                resultados.append(f"📄 **{doc_nombre} - {equipo_encontrado.title()}:**\n\n{seccion}")
+        
+        # Búsqueda general de roles si no hay coincidencia específica
+        if not resultados and any(p in pregunta_limpia for p in ['equipo', 'rol', 'función', 'responsabilidad', 'cargo']):
+            equipos = extraer_todos_equipos(contenido)
+            if equipos:
+                resultados.append(f"📄 **{doc_nombre} - Resumen de Equipos:**\n\n{equipos}")
+                break
+        
+        # Búsqueda por contenido general
+        if not resultados:
+            # Buscar términos específicos en el contenido
+            terminos_buscar = pregunta_limpia.split()
+            coincidencias = []
+            for termino in terminos_buscar:
+                if len(termino) > 4 and termino in contenido_lower:
+                    # Encontrar líneas con el término
+                    lineas = contenido.split('\n')
+                    for i, linea in enumerate(lineas):
+                        if termino in linea.lower():
+                            inicio = max(0, i-1)
+                            fin = min(len(lineas), i+3)
+                            contexto = '\n'.join(lineas[inicio:fin])
+                            coincidencias.append(contexto)
+                            if len(coincidencias) >= 3:
+                                break
+            
+            if coincidencias:
+                resultados.append(f"📄 **{doc_nombre} - Coincidencias encontradas:**\n\n" + "\n...\n".join(coincidencias[:3]))
+    
+    if resultados:
+        return "\n\n".join(resultados[:2])  # Máximo 2 resultados
+    
+    return "🤔 No encontré información específica en los documentos. Prueba con: 'equipo de proyectos', 'soporte técnico', 'gestión de stock', 'documentos cargados'"
+
+# ================================
 # GROQ - VERSIÓN ESTABLE
 # ================================
 def preguntar_groq(pregunta, documentos):
@@ -73,12 +197,19 @@ def preguntar_groq(pregunta, documentos):
     if not api_key:
         return "⚠️ **Modo local** - Usando búsqueda básica\n\n" + buscar_localmente(pregunta, documentos)
     
-    # CONTEXTO MUY CONTROLADO
-    contexto = "INFORMACIÓN DE DOCUMENTOS:\n"
+    # CONTEXTO MEJORADO - Enviamos contenido más relevante
+    contexto = "INFORMACIÓN DE DOCUMENTOS - MANUAL DE PUNTOS DIGITALES:\n"
     for doc_nombre, contenido in documentos.items():
-        # Solo las primeras 15 líneas de cada documento
-        lineas = contenido.split('\n')[:15]
-        contexto += f"\n--- {doc_nombre} ---\n" + '\n'.join(lineas) + "\n"
+        # Para preguntas sobre roles, enviamos secciones específicas
+        if any(p in pregunta.lower() for p in ['equipo', 'rol', 'función', 'cargo']):
+            # Extraer solo secciones de equipos
+            equipos_texto = extraer_todos_equipos(contenido)
+            if equipos_texto:
+                contexto += f"\n--- {doc_nombre} ---\n{equipos_texto}\n"
+        else:
+            # Envío normal (primeras 20 líneas)
+            lineas = contenido.split('\n')[:20]
+            contexto += f"\n--- {doc_nombre} ---\n" + '\n'.join(lineas) + "\n"
     
     print(f"🔍 Enviando a Groq... Contexto: {len(contexto)} chars")
     
@@ -94,11 +225,11 @@ def preguntar_groq(pregunta, documentos):
                 "messages": [
                     {
                         "role": "system", 
-                        "content": "Eres un asistente especializado. Responde en español de forma clara y concisa basándote solo en los documentos proporcionados."
+                        "content": "Eres un asistente especializado en el Programa Punto Digital. Responde en español de forma clara y concisa basándote solo en los documentos proporcionados. Si la información no está en los documentos, indica que no la tienes."
                     },
                     {
                         "role": "user", 
-                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA:"
+                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA (basada solo en los documentos):"
                     }
                 ],
                 "temperature": 0.1,
@@ -119,30 +250,6 @@ def preguntar_groq(pregunta, documentos):
     except Exception as e:
         return f"❌ Error: {str(e)}\n\n" + buscar_localmente(pregunta, documentos)
 
-def buscar_localmente(pregunta, documentos):
-    """Búsqueda local de respaldo"""
-    pregunta_limpia = pregunta.lower()
-    
-    # Pregunta sobre documentos
-    if any(p in pregunta_limpia for p in ['documento', 'cargado', 'archivo']):
-        docs = list(documentos.keys())
-        return f"📂 **Documentos cargados ({len(docs)}):**\n" + "\n".join([f"• {d}" for d in docs])
-    
-    # Buscar contenido específico
-    for doc_nombre, contenido in documentos.items():
-        contenido_lower = contenido.lower()
-        
-        if 'equipo' in pregunta_limpia or 'rol' in pregunta_limpia:
-            if 'equipo' in contenido_lower or 'rol' in contenido_lower:
-                lineas = contenido.split('\n')
-                resultado = f"📄 **{doc_nombre} - Equipos/Roles:**\n\n"
-                for linea in lineas:
-                    if any(palabra in linea.lower() for palabra in ['equipo', 'rol', 'dirección', 'proyectos', 'stock', 'soporte']):
-                        resultado += f"{linea}\n"
-                return resultado
-    
-    return "🤔 No encontré información específica. Prueba con: 'documentos', 'equipos', 'roles'"
-
 # ================================
 # RUTAS PRINCIPALES
 # ================================
@@ -162,25 +269,42 @@ def chat():
         documentos = cargar_documentos_docx()
         
         if not documentos:
-            return jsonify({'success': True, 'response': "📂 No hay documentos cargados."})
+            return jsonify({'success': True, 'response': "📂 No hay documentos cargados en la carpeta 'documents'."})
         
         # Respuesta rápida para saludo
-        if any(s in pregunta.lower() for s in ['hola', 'buenos días', 'buenas']):
+        if any(s in pregunta.lower() for s in ['hola', 'buenos días', 'buenas', 'hello', 'hi']):
             return jsonify({
                 'success': True, 
-                'response': f"¡Hola! 👋 Soy tu asistente con IA. Tengo {len(documentos)} documento(s) cargados. ¿En qué puedo ayudarte?"
+                'response': f"¡Hola! 👋 Soy tu asistente especializado en Puntos Digitales. Tengo {len(documentos)} documento(s) cargados. ¿En qué puedo ayudarte?"
             })
         
-        # Usar Groq
+        # Respuesta rápida para despedida
+        if any(s in pregunta.lower() for s in ['chao', 'adiós', 'bye', 'nos vemos']):
+            return jsonify({
+                'success': True, 
+                'response': "¡Hasta luego! 👋 Fue un gusto ayudarte."
+            })
+        
+        # Usar Groq con fallback a búsqueda local
         respuesta = preguntar_groq(pregunta, documentos)
         return jsonify({'success': True, 'response': respuesta})
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error: {str(e)}'})
 
+# ================================
+# INICIO DE LA APLICACIÓN
+# ================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 ChatBot con Groq iniciado en puerto {port}")
+    print(f"🚀 ChatBot Puntos Digitales iniciado en puerto {port}")
     api_key = os.environ.get('GROQ_API_KEY')
-    print(f"🔍 GROQ_API_KEY: {'✅ CONFIGURADA' if api_key else '❌ FALTANTE'}")
+    print(f"🔍 GROQ_API_KEY: {'✅ CONFIGURADA' if api_key else '❌ FALTANTE - Usando modo local'}")
+    
+    # Verificar documentos
+    documentos = cargar_documentos_docx()
+    print(f"📄 Documentos cargados: {len(documentos)}")
+    for doc in documentos.keys():
+        print(f"   • {doc}")
+    
     app.run(host='0.0.0.0', port=port, debug=False)
