@@ -72,3 +72,117 @@ button {
 button:hover {
     background-color: #007a29;
 }
+.tina-chat-widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+.tina-chat-button {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #00cec9, #0984e3);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border: none;
+    transition: all 0.3s ease;
+    animation: pulse 2s infinite;
+}
+.tina-chat-button:hover {
+    transform: scale(1.1);
+}
+.tina-chat-window {
+    position: absolute;
+    bottom: 70px;
+    right: 0;
+    width: 350px;
+    height: 500px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+}
+.tina-chat-window.active {
+    display: flex;
+}
+.tina-chat-header {
+    background: linear-gradient(135deg, #00cec9, #0984e3);
+    color: white;
+    padding: 20px;
+    text-align: center;
+}
+.tina-chat-messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: #f8f9fa;
+}
+.tina-message {
+    margin-bottom: 15px;
+    padding: 10px 15px;
+    border-radius: 18px;
+    max-width: 85%;
+    animation: fadeIn 0.3s ease;
+    font-size: 14px;
+    line-height: 1.4;
+}
+.tina-bot-message {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 18px 18px 18px 4px;
+    margin-right: auto;
+}
+.tina-user-message {
+    background: #0984e3;
+    color: white;
+    margin-left: auto;
+    border-radius: 18px 18px 4px 18px;
+}
+.tina-chat-input {
+    padding: 15px;
+    background: white;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    gap: 10px;
+}
+.tina-chat-input input {
+    flex: 1;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 25px;
+    outline: none;
+    font-size: 14px;
+}
+.tina-typing {
+    display: none;
+    padding: 10px 15px;
+    color: #666;
+    font-style: italic;
+    font-size: 12px;
+}
+.tina-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+}
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
