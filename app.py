@@ -92,7 +92,7 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# GROQ - CON MEJOR MANEJO DE ERRORES
+# GROQ - CORREGIDO (sin timeout en el JSON)
 # ================================
 def preguntar_groq(pregunta, documentos):
     api_key = os.environ.get('GROQ_API_KEY')
@@ -101,7 +101,6 @@ def preguntar_groq(pregunta, documentos):
     logger.info(f"🔑 GROQ_API_KEY presente: {bool(api_key)}")
     if api_key:
         logger.info(f"🔑 Longitud de API key: {len(api_key)} caracteres")
-        # No logger la key completa por seguridad, pero podemos ver los primeros caracteres
         logger.info(f"🔑 API key comienza con: {api_key[:10]}...")
     
     if not api_key:
@@ -116,7 +115,7 @@ def preguntar_groq(pregunta, documentos):
         
         for doc_nombre, contenido in documentos.items():
             doc_contexto = f"--- DOCUMENTO: {doc_nombre} ---\n{contenido}\n\n"
-            if total_caracteres + len(doc_contexto) > 15000:  # Más conservador
+            if total_caracteres + len(doc_contexto) > 15000:
                 contexto += "[... Documento truncado por límites ...]\n\n"
                 break
             contexto += doc_contexto
@@ -131,7 +130,7 @@ def preguntar_groq(pregunta, documentos):
         - • para listas
         Base tus respuestas SOLO en la información proporcionada."""
         
-        # Preparar request
+        # Preparar request - CORREGIDO: sin 'timeout' en el JSON
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -144,8 +143,8 @@ def preguntar_groq(pregunta, documentos):
                 {"role": "user", "content": f"Contexto:\n{contexto}\n\nPregunta: {pregunta}\n\nRespuesta (usar HTML básico):"}
             ],
             "temperature": 0.1,
-            "max_tokens": 1000,
-            "timeout": 30
+            "max_tokens": 1000
+            # ⚠️ REMOVIDO: "timeout": 30 - Groq no soporta este parámetro
         }
         
         logger.info("🔄 Enviando solicitud a Groq API...")
@@ -154,7 +153,7 @@ def preguntar_groq(pregunta, documentos):
             "https://api.groq.com/openai/v1/chat/completions",
             headers=headers,
             json=payload,
-            timeout=30
+            timeout=30  # ✅ Timeout solo aquí, en la llamada a requests
         )
         
         logger.info(f"📡 Response status: {response.status_code}")
@@ -231,6 +230,15 @@ def chat():
             return jsonify({
                 'success': True, 
                 'response': "¡Hasta luego! 👋"
+            })
+        
+        # Mostrar documentos disponibles
+        if any(p in pregunta_lower for p in ['documento', 'cargado', 'archivo', 'disponible', 'documentos']):
+            docs = list(documentos.keys())
+            doc_list = "<br>".join([f"• {d}" for d in docs])
+            return jsonify({
+                'success': True,
+                'response': f"<strong>📂 Documentos cargados ({len(docs)}):</strong><br><br>{doc_list}"
             })
         
         # Usar Groq
