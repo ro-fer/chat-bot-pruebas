@@ -6,6 +6,7 @@ import re
 
 app = Flask(__name__)
 DOCUMENTS_DIR = "documents"
+
 # ================================
 # CONFIGURACIÓN BÁSICA
 # ================================
@@ -68,7 +69,7 @@ def cargar_documentos_docx():
 def formatear_respuesta_html(contenido, equipo):
     """Formatea la respuesta con HTML para saltos de línea"""
     lineas = contenido.split('\n')
-    respuesta_formateada = f"<strong>🏢 {equipo.upper()}</strong><br><br>"
+    respuesta_formateada = f"<strong>🏢 {equipo.upper()}</strong><br>"
     seccion_actual = ""
     for i, linea in enumerate(lineas):
         linea = linea.strip()
@@ -84,17 +85,17 @@ def formatear_respuesta_html(contenido, equipo):
         # Detectar secciones importantes
         if 'coordinación' in linea.lower() and len(linea) < 25:
             seccion_actual = "coordinacion"
-            respuesta_formateada += "<br>👨‍💼 <strong>Coordinación</strong><br><br>"
+            respuesta_formateada += "<br>👨‍💼 <strong>Coordinación</strong><br>"
             continue
         elif 'analistas' in linea.lower() and len(linea) < 25:
             seccion_actual = "analistas"
-            respuesta_formateada += "<br>👩‍💻 <strong>Analistas de Stock</strong><br><br>"
+            respuesta_formateada += "<br>👩‍💻 <strong>Analistas de Stock</strong><br>"
             continue
         elif 'objetivos generales:' in linea.lower() or 'objetivos:' in linea.lower():
-            respuesta_formateada += "<br>🎯 <strong>Objetivos:</strong><br><br>"
+            respuesta_formateada += "<br>🎯 <strong>Objetivos:</strong><br>"
             continue
         elif 'actividades' in linea.lower() and '/ tareas' in linea.lower():
-            respuesta_formateada += "<br>📋 <strong>Actividades:</strong><br><br>"
+            respuesta_formateada += "<br>📋 <strong>Actividades:</strong><br>"
             continue
         
         # Formatear el contenido según el tipo
@@ -168,6 +169,47 @@ def extraer_seccion_equipo_estructurada(contenido, equipo_buscado):
     
     return None
 
+def buscar_general(pregunta, documentos):
+    """Búsqueda general en todo el contenido de documentos"""
+    pregunta_limpia = pregunta.lower()
+    resultados = []
+    
+    for doc_nombre, contenido in documentos.items():
+        contenido_lower = contenido.lower()
+        
+        # Buscar coincidencias directas
+        if pregunta_limpia in contenido_lower:
+            # Encontrar el contexto alrededor de la coincidencia
+            lineas = contenido.split('\n')
+            for i, linea in enumerate(lineas):
+                if pregunta_limpia in linea.lower():
+                    inicio = max(0, i-2)  # 2 líneas antes
+                    fin = min(len(lineas), i+5)  # 5 líneas después
+                    contexto = '<br>'.join(lineas[inicio:fin])
+                    resultados.append(f"<strong>📄 {doc_nombre}</strong><br>{contexto}<br>...")
+                    break
+        
+        # Buscar por palabras individuales si no hay coincidencia exacta
+        elif len(pregunta_limpia.split()) > 1:
+            palabras = pregunta_limpia.split()
+            coincidencias = []
+            for palabra in palabras:
+                if len(palabra) > 3 and palabra in contenido_lower:
+                    coincidencias.append(palabra)
+            
+            if len(coincidencias) >= 2:  # Si al menos 2 palabras coinciden
+                # Encontrar una sección relevante
+                lineas = contenido.split('\n')
+                for i, linea in enumerate(lineas):
+                    if any(palabra in linea.lower() for palabra in coincidencias):
+                        inicio = max(0, i-1)
+                        fin = min(len(lineas), i+4)
+                        contexto = '<br>'.join(lineas[inicio:fin])
+                        resultados.append(f"<strong>📄 {doc_nombre}</strong><br>{contexto}<br>...")
+                        break
+    
+    return resultados
+
 def buscar_localmente_mejorada(pregunta, documentos):
     """Búsqueda local mejorada con respuestas en HTML"""
     pregunta_limpia = pregunta.lower()
@@ -181,13 +223,14 @@ def buscar_localmente_mejorada(pregunta, documentos):
         'imagen': ['imagen', 'cartelería', 'señalética', 'equipo de imagen'],
         'monitoreo': ['monitoreo', 'vinculación', 'capacitación', 'evaluación', 'monitoreo y vinculación']
     }
-    # Pregunta sobre documentos disponibles
+    
+    # 1. Pregunta sobre documentos disponibles
     if any(p in pregunta_limpia for p in ['documento', 'cargado', 'archivo', 'disponible']):
         docs = list(documentos.keys())
         doc_list = "<br>".join([f"• {d}" for d in docs])
-        return f"<strong>📂 Documentos cargados ({len(docs)}):</strong><br><br>{doc_list}"
+        return f"<strong>📂 Documentos cargados ({len(docs)}):</strong><br>{doc_list}"
     
-    # Buscar equipo específico
+    # 2. Buscar equipo específico
     equipo_encontrado = None
     for equipo, keywords in palabras_clave.items():
         if any(palabra in pregunta_limpia for palabra in keywords):
@@ -201,13 +244,18 @@ def buscar_localmente_mejorada(pregunta, documentos):
             if seccion:
                 # Acortar el nombre del documento si es muy largo
                 doc_nombre_corto = doc_nombre[:50] + "..." if len(doc_nombre) > 50 else doc_nombre
-                resultados.append(f"<strong>📄 {doc_nombre_corto}</strong><br><br>{seccion}")
+                resultados.append(f"<strong>📄 {doc_nombre_corto}</strong><br>{seccion}")
                 break
     
     if resultados:
-        return "<br>" + "<br><br>".join(resultados)
+        return "<br>".join(resultados)
     
-    # Si no se encontró equipo específico
+    # 3. Búsqueda general si no es sobre equipos
+    resultados_generales = buscar_general(pregunta, documentos)
+    if resultados_generales:
+        return "<br>".join(resultados_generales[:2])  # Máximo 2 resultados
+    
+    # 4. Información general de equipos
     for doc_nombre, contenido in documentos.items():
         if any(p in pregunta_limpia for p in ['equipo', 'rol', 'función', 'responsabilidad']):
             equipos_encontrados = []
@@ -217,9 +265,10 @@ def buscar_localmente_mejorada(pregunta, documentos):
             
             if equipos_encontrados:
                 equipos_str = ", ".join(equipos_encontrados)
-                return f"<strong>📄 {doc_nombre}</strong><br><br>🔍 <strong>Equipos mencionados:</strong> {equipos_str}<br><br>💡 <em>Pregunta por un equipo específico como 'stock' o 'proyectos' para más detalles</em>"
+                return f"<strong>📄 {doc_nombre}</strong><br>🔍 <strong>Equipos mencionados:</strong> {equipos_str}<br>💡 <em>Pregunta por un equipo específico para más detalles</em>"
     
-    return "🤔 No encontré información específica sobre ese tema.<br><br>Prueba con: 'equipo de proyectos', 'soporte técnico', 'gestión de stock' o 'documentos cargados'"
+    # 5. Si no encuentra nada
+    return "🤔 No encontré información específica sobre ese tema.<br>Puedes preguntar sobre:<br>• Equipos (stock, proyectos, soporte)<br>• Documentos disponibles<br>• Procesos específicos<br>• Procedimientos de instalación"
 
 # ================================
 # GROQ 
@@ -234,6 +283,7 @@ def preguntar_groq(pregunta, documentos):
         contexto = "INFORMACIÓN SOBRE PUNTO DIGITAL:\n\n"
         
         for doc_nombre, contenido in documentos.items():
+            # Para preguntas específicas, buscar contenido relevante
             if any(p in pregunta.lower() for p in ['stock', 'equipamiento', 'inventario']):
                 seccion_stock = extraer_seccion_equipo_estructurada(contenido, 'stock')
                 if seccion_stock:
@@ -247,7 +297,8 @@ def preguntar_groq(pregunta, documentos):
                 if seccion_soporte:
                     contexto += f"DOCUMENTO: {doc_nombre}\n{seccion_soporte}\n\n"
             else:
-                lineas = contenido.split('\n')[:8]
+                # Para preguntas generales, enviar más contenido
+                lineas = contenido.split('\n')[:15]  # Más líneas para contexto general
                 contexto += f"DOCUMENTO: {doc_nombre}\n" + '\n'.join(lineas) + "\n\n"
         
         if len(contexto) > 3000:
