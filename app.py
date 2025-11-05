@@ -64,78 +64,119 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# BÚSQUEDA ESPECÍFICA MEJORADA
+# BÚSQUEDA DEBUG - VERSIÓN SIMPLIFICADA
 # ================================
-def buscar_tabla_puesta_marcha_exacta(contenido):
-    """Busca específicamente la tabla de puesta en marcha"""
+def debug_buscar_puesta_marcha(contenido):
+    """Función DEBUG para encontrar exactamente qué hay en el documento"""
     lineas = contenido.split('\n')
-    procedimientos = []
+    resultados_debug = []
     
-    # Buscar el inicio exacto de la tabla
+    resultados_debug.append("🔍 <strong>DEBUG - BUSCANDO 'PUESTA EN MARCHA':</strong><br>")
+    
+    # Buscar cualquier mención de puesta en marcha
+    for i, linea in enumerate(lineas):
+        linea_limpia = linea.strip()
+        if 'puesta' in linea_limpia.lower() or 'marcha' in linea_limpia.lower():
+            resultados_debug.append(f"Línea {i}: {linea_limpia}<br>")
+    
+    # Buscar la tabla específica
+    resultados_debug.append("<br>🔍 <strong>BUSCANDO TABLA:</strong><br>")
+    for i, linea in enumerate(lineas):
+        linea_limpia = linea.strip()
+        if 'servicio' in linea_limpia.lower() and any(p in linea_limpia.lower() for p in ['puesta', 'marcha']):
+            resultados_debug.append(f"🚨 ENCONTRADO TÍTULO en línea {i}: {linea_limpia}<br>")
+            
+            # Mostrar las siguientes 15 líneas
+            resultados_debug.append(f"<br>📋 <strong>CONTENIDO DE LA TABLA (próximas 15 líneas):</strong><br>")
+            for j in range(i+1, min(i+16, len(lineas))):
+                linea_tabla = lineas[j].strip()
+                if linea_tabla:
+                    resultados_debug.append(f"Línea {j}: {linea_tabla}<br>")
+            break
+    
+    return resultados_debug
+
+def buscar_puesta_marcha_simple(contenido):
+    """Búsqueda simple pero efectiva de puesta en marcha"""
+    lineas = contenido.split('\n')
+    resultados = []
+    
+    # Buscar el título de la sección
     for i, linea in enumerate(lineas):
         linea_limpia = linea.strip()
         
-        # Buscar el título exacto de la tabla
-        if 'servicio de puesta en marcha de un punto digital' in linea_limpia.lower():
-            procedimientos.append("<strong>🚀 SERVICIO DE PUESTA EN MARCHA DE UN PUNTO DIGITAL</strong><br><br>")
+        # Buscar el título de la tabla (diferentes variaciones)
+        if (('servicio' in linea_limpia.lower() and 'puesta' in linea_limpia.lower() and 'marcha' in linea_limpia.lower()) or
+            ('servicio de puesta' in linea_limpia.lower())):
             
-            # Buscar las líneas de la tabla después del título
-            for j in range(i+1, min(i+20, len(lineas))):
+            resultados.append("<strong>🚀 SERVICIO DE PUESTA EN MARCHA DE UN PUNTO DIGITAL</strong><br><br>")
+            
+            # Capturar las líneas de la tabla (buscar líneas con números)
+            for j in range(i+1, min(i+25, len(lineas))):
                 linea_tabla = lineas[j].strip()
                 
                 # Buscar líneas que parecen ser de la tabla
                 if (re.match(r'^\d+\.', linea_tabla) or 
-                    re.match(r'^[A-Z]\.', linea_tabla) or
-                    any(palabra in linea_tabla.lower() for palabra in ['proyectos', 'stock', 'soporte', 'imagen', 'monitoreo', 'equipo'])):
+                    re.match(r'^\d+\.\s', linea_tabla) or
+                    any(palabra in linea_tabla.lower() for palabra in ['proyectos', 'stock', 'soporte', 'imagen', 'monitoreo', 'equipo', 'gestión', 'análisis', 'designación', 'preinstalación', 'instalación', 'inauguración'])):
                     
-                    if len(linea_tabla) > 3:  # Filtrar líneas muy cortas
-                        # Formatear según el contenido
+                    if len(linea_tabla) > 5:  # Filtrar líneas muy cortas
+                        # Formatear según el tipo de actividad
                         if 'instalación' in linea_tabla.lower():
-                            procedimientos.append(f"🔨 {linea_tabla}<br>")
+                            resultados.append(f"🔨 {linea_tabla}<br>")
                         elif 'inauguración' in linea_tabla.lower():
-                            procedimientos.append(f"🎉 {linea_tabla}<br>")
+                            resultados.append(f"🎉 {linea_tabla}<br>")
                         elif 'equipamiento' in linea_tabla.lower() or 'stock' in linea_tabla.lower():
-                            procedimientos.append(f"📦 {linea_tabla}<br>")
+                            resultados.append(f"📦 {linea_tabla}<br>")
                         elif 'preinstalación' in linea_tabla.lower():
-                            procedimientos.append(f"🔧 {linea_tabla}<br>")
+                            resultados.append(f"🔧 {linea_tabla}<br>")
+                        elif 'proyectos' in linea_tabla.lower():
+                            resultados.append(f"📋 {linea_tabla}<br>")
+                        elif 'soporte' in linea_tabla.lower():
+                            resultados.append(f"🛠️ {linea_tabla}<br>")
+                        elif 'imagen' in linea_tabla.lower():
+                            resultados.append(f"🎨 {linea_tabla}<br>")
+                        elif 'monitoreo' in linea_tabla.lower():
+                            resultados.append(f"📊 {linea_tabla}<br>")
                         else:
-                            procedimientos.append(f"• {linea_tabla}<br>")
+                            resultados.append(f"• {linea_tabla}<br>")
                 
                 # Detener si encontramos el final de la tabla
-                if 'procedimientos de seguimiento' in linea_tabla.lower() or j == i+19:
+                if 'procedimientos de seguimiento' in linea_tabla.lower() or 'equipo' in linea_tabla.lower() and 'proceso' in linea_tabla.lower():
                     break
             
-            break  # Salir después de encontrar la primera tabla
+            break
     
-    return procedimientos
+    return resultados
 
-def buscar_tabla_seguimiento_exacta(contenido):
-    """Busca específicamente la tabla de seguimiento"""
+def buscar_seguimiento_simple(contenido):
+    """Búsqueda simple de procedimientos de seguimiento"""
     lineas = contenido.split('\n')
-    procedimientos = []
+    resultados = []
     
     for i, linea in enumerate(lineas):
         linea_limpia = linea.strip()
         
-        if 'procedimientos de seguimiento y soporte a puntos digitales' in linea_limpia.lower():
-            procedimientos.append("<br><strong>🔧 PROCEDIMIENTOS DE SEGUIMIENTO Y SOPORTE</strong><br><br>")
+        if 'procedimientos de seguimiento' in linea_limpia.lower():
+            resultados.append("<br><strong>🔧 PROCEDIMIENTOS DE SEGUIMIENTO Y SOPORTE</strong><br><br>")
             
             # Buscar las líneas de la tabla de seguimiento
             for j in range(i+1, min(i+15, len(lineas))):
                 linea_tabla = lineas[j].strip()
                 
+                # Buscar líneas con formato de tabla (A., B., C.)
                 if (re.match(r'^[A-Z]\.', linea_tabla) or 
-                    any(palabra in linea_tabla.lower() for palabra in ['soporte técnico', 'imagen', 'gestión de stock', 'equipo'])):
+                    any(palabra in linea_tabla.lower() for palabra in ['soporte técnico', 'imagen', 'gestión de stock'])):
                     
                     if len(linea_tabla) > 5:
                         if 'soporte técnico' in linea_tabla.lower():
-                            procedimientos.append(f"🛠️ {linea_tabla}<br>")
+                            resultados.append(f"🛠️ {linea_tabla}<br>")
                         elif 'imagen' in linea_tabla.lower():
-                            procedimientos.append(f"🎨 {linea_tabla}<br>")
+                            resultados.append(f"🎨 {linea_tabla}<br>")
                         elif 'stock' in linea_tabla.lower():
-                            procedimientos.append(f"📦 {linea_tabla}<br>")
+                            resultados.append(f"📦 {linea_tabla}<br>")
                         else:
-                            procedimientos.append(f"• {linea_tabla}<br>")
+                            resultados.append(f"• {linea_tabla}<br>")
                 
                 # Detener si encontramos otra sección
                 if 'lineamientos' in linea_tabla.lower() or j == i+14:
@@ -143,37 +184,10 @@ def buscar_tabla_seguimiento_exacta(contenido):
             
             break
     
-    return procedimientos
-
-def buscar_informacion_estructurada(contenido, termino_busqueda):
-    """Busca información estructurada sobre un término específico"""
-    lineas = contenido.split('\n')
-    resultados = []
-    termino = termino_busqueda.lower()
-    
-    for i, linea in enumerate(lineas):
-        linea_limpia = linea.strip()
-        linea_lower = linea_limpia.lower()
-        
-        if termino in linea_lower and len(linea_limpia) > 10:
-            # Buscar contexto alrededor
-            inicio = max(0, i-1)
-            fin = min(len(lineas), i+4)
-            contexto = []
-            
-            for j in range(inicio, fin):
-                if lineas[j].strip():
-                    contexto.append(lineas[j].strip())
-            
-            if contexto:
-                resultados.extend(contexto)
-                if len(resultados) >= 8:  # Límite de líneas
-                    break
-    
     return resultados
 
 def buscar_localmente_mejorada(pregunta, documentos):
-    """Búsqueda local mejorada"""
+    """Búsqueda local mejorada - VERSIÓN DEBUG"""
     pregunta_limpia = pregunta.lower()
     
     # 1. Pregunta sobre documentos disponibles
@@ -185,57 +199,43 @@ def buscar_localmente_mejorada(pregunta, documentos):
     resultados = []
     
     for doc_nombre, contenido in documentos.items():
-        # 2. Búsqueda de tablas específicas para "puesta en marcha"
-        if any(p in pregunta_limpia for p in ['puesta en marcha', 'procedimiento', 'instalación']):
-            tabla_puesta_marcha = buscar_tabla_puesta_marcha_exacta(contenido)
-            if tabla_puesta_marcha:
-                resultados.append(f"<strong>📄 {doc_nombre}</strong><br><br>" + "".join(tabla_puesta_marcha))
-            
-            tabla_seguimiento = buscar_tabla_seguimiento_exacta(contenido)
-            if tabla_seguimiento:
-                if resultados:
-                    resultados[-1] += "".join(tabla_seguimiento)
-                else:
-                    resultados.append(f"<strong>📄 {doc_nombre}</strong><br><br>" + "".join(tabla_seguimiento))
+        # 2. PRIMERO: Mostrar información DEBUG para entender el problema
+        if 'debug' in pregunta_limpia:
+            debug_info = debug_buscar_puesta_marcha(contenido)
+            return f"<strong>📄 {doc_nombre} - DEBUG</strong><br><br>" + "".join(debug_info)
         
-        # 3. Si no se encontraron tablas, buscar información general
+        # 3. Búsqueda de puesta en marcha
+        if any(p in pregunta_limpia for p in ['puesta en marcha', 'puesta', 'marcha']):
+            puesta_marcha = buscar_puesta_marcha_simple(contenido)
+            if puesta_marcha:
+                resultados.append(f"<strong>📄 {doc_nombre}</strong><br><br>" + "".join(puesta_marcha))
+            
+            seguimiento = buscar_seguimiento_simple(contenido)
+            if seguimiento:
+                if resultados:
+                    resultados[-1] += "".join(seguimiento)
+                else:
+                    resultados.append(f"<strong>📄 {doc_nombre}</strong><br><br>" + "".join(seguimiento))
+        
+        # Si no se encontró nada específico, mostrar información general
         if not resultados and any(p in pregunta_limpia for p in ['puesta en marcha', 'implementación']):
-            info_estructurada = buscar_informacion_estructurada(contenido, 'puesta en marcha')
-            if info_estructurada:
-                contenido_formateado = "<br>".join([f"📋 {linea}" for linea in info_estructurada])
-                resultados.append(f"<strong>📄 {doc_nombre}</strong><br><br>{contenido_formateado}")
+            # Buscar cualquier mención de puesta en marcha
+            lineas = contenido.split('\n')
+            info_general = []
+            for linea in lineas:
+                if 'puesta' in linea.lower() and 'marcha' in linea.lower() and len(linea.strip()) > 10:
+                    info_general.append(linea.strip())
+                    if len(info_general) >= 5:
+                        break
+            
+            if info_general:
+                contenido_general = "<br>".join([f"📋 {linea}" for linea in info_general])
+                resultados.append(f"<strong>📄 {doc_nombre}</strong><br><br>{contenido_general}")
     
     if resultados:
         return "<br><br>".join(resultados)
     
-    # 4. Búsqueda por equipos
-    equipos = {
-        'dirección': '👨‍💼',
-        'proyectos': '📋', 
-        'stock': '📦',
-        'soporte': '🔧',
-        'imagen': '🎨',
-        'monitoreo': '📊'
-    }
-    
-    for equipo, emoji in equipos.items():
-        if equipo in pregunta_limpia:
-            for doc_nombre, contenido in documentos.items():
-                if equipo in contenido.lower():
-                    info_equipo = buscar_informacion_estructurada(contenido, equipo)
-                    if info_equipo:
-                        contenido_equipo = "<br>".join([f"{emoji} {linea}" for linea in info_equipo[:6]])
-                        return f"<strong>📄 {doc_nombre}</strong><br><br><strong>{emoji} {equipo.upper()}</strong><br><br>{contenido_equipo}"
-    
-    # 5. Búsqueda general
-    for doc_nombre, contenido in documentos.items():
-        if pregunta_limpia in contenido.lower():
-            info_general = buscar_informacion_estructurada(contenido, pregunta_limpia)
-            if info_general:
-                contenido_general = "<br>".join([f"• {linea}" for linea in info_general[:5]])
-                return f"<strong>📄 {doc_nombre}</strong><br><br>{contenido_general}"
-    
-    return "🤔 No encontré información específica sobre 'puesta en marcha'.<br><br>Puedes preguntar sobre:<br>• Procedimientos específicos<br>• Equipos (proyectos, stock, soporte)<br>• Documentos disponibles"
+    return "🤔 No encontré información específica sobre 'puesta en marcha'.<br><br>💡 <strong>Sugerencia:</strong> Escribe 'DEBUG' para ver qué contiene el documento."
 
 # ================================
 # GROQ 
@@ -250,20 +250,19 @@ def preguntar_groq(pregunta, documentos):
         contexto = "INFORMACIÓN SOBRE PUNTO DIGITAL:\n\n"
         
         for doc_nombre, contenido in documentos.items():
-            # Para "puesta en marcha", enviar información específica de tablas
-            if any(p in pregunta.lower() for p in ['puesta en marcha', 'procedimiento']):
-                tabla_puesta = buscar_tabla_puesta_marcha_exacta(contenido)
-                tabla_seguimiento = buscar_tabla_seguimiento_exacta(contenido)
-                
-                if tabla_puesta or tabla_seguimiento:
-                    contexto += f"DOCUMENTO: {doc_nombre}\n"
-                    if tabla_puesta:
-                        contexto += "TABLA PUESTA EN MARCHA:\n" + "\n".join([p.replace('<br>', '\n').replace('<strong>', '').replace('</strong>', '') for p in tabla_puesta]) + "\n"
-                    if tabla_seguimiento:
-                        contexto += "TABLA SEGUIMIENTO:\n" + "\n".join([p.replace('<br>', '\n').replace('<strong>', '').replace('</strong>', '') for p in tabla_seguimiento]) + "\n"
-                    contexto += "\n"
+            # Usar las funciones simples para el contexto
+            puesta_marcha = buscar_puesta_marcha_simple(contenido)
+            seguimiento = buscar_seguimiento_simple(contenido)
+            
+            if puesta_marcha or seguimiento:
+                contexto += f"DOCUMENTO: {doc_nombre}\n"
+                if puesta_marcha:
+                    contexto += "PUESTA EN MARCHA:\n" + "\n".join([p.replace('<br>', '\n').replace('<strong>', '').replace('</strong>', '') for p in puesta_marcha]) + "\n"
+                if seguimiento:
+                    contexto += "SEGUIMIENTO:\n" + "\n".join([p.replace('<br>', '\n').replace('<strong>', '').replace('</strong>', '') for p in seguimiento]) + "\n"
+                contexto += "\n"
             else:
-                lineas = contenido.split('\n')[:8]
+                lineas = contenido.split('\n')[:10]
                 contexto += f"DOCUMENTO: {doc_nombre}\n" + '\n'.join(lineas) + "\n\n"
         
         if len(contexto) > 3000:
@@ -280,11 +279,11 @@ def preguntar_groq(pregunta, documentos):
                 "messages": [
                     {
                         "role": "system", 
-                        "content": "Eres un asistente especializado en Puntos Digitales. Cuando te pregunten sobre 'puesta en marcha', enfócate en los PROCEDIMIENTOS y PASOS específicos de las tablas. Responde de forma CLARA y ESTRUCTURADA. Usa HTML básico: <br> para saltos de línea y <strong> para negritas. Basate SOLO en la información proporcionada."
+                        "content": "Eres un asistente especializado en Puntos Digitales. Responde de forma CLARA y ESTRUCTURADA. Usa HTML básico: <br> para saltos de línea y <strong> para negritas. Basate SOLO en la información proporcionada."
                     },
                     {
                         "role": "user", 
-                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA (usa HTML, organiza en pasos):"
+                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA (usa HTML):"
                     }
                 ],
                 "temperature": 0.1,
