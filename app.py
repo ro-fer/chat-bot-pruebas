@@ -37,7 +37,7 @@ def list_documents():
     return html
 
 # ================================
-# PROCESADOR DE DOCX COMPLETO
+# PROCESADOR DE DOCX (FUNCIONA BIEN)
 # ================================
 def procesar_docx_completo(ruta_archivo):
     """Procesa TODO el contenido del DOCX incluyendo tablas"""
@@ -45,29 +45,25 @@ def procesar_docx_completo(ruta_archivo):
         doc = Document(ruta_archivo)
         texto_completo = ""
         
-        print(f"🔍 Procesando: {ruta_archivo}")
-        
         # Procesar párrafos
-        for i, paragraph in enumerate(doc.paragraphs):
+        for paragraph in doc.paragraphs:
             if paragraph.text.strip():
-                texto_completo += f"P[{i}]: {paragraph.text}\n"
+                texto_completo += paragraph.text + "\n"
         
         # Procesar tablas
-        for t, table in enumerate(doc.tables):
-            texto_completo += f"\n=== TABLA {t+1} ===\n"
-            for r, row in enumerate(table.rows):
-                fila_texto = f"Fila {r+1}: "
-                celdas = []
-                for c, cell in enumerate(row.cells):
+        for table in doc.tables:
+            texto_completo += "\n" + "="*50 + "\n"
+            for row in table.rows:
+                fila_texto = []
+                for cell in row.cells:
                     if cell.text.strip():
-                        celdas.append(f"[C{c+1}: {cell.text.strip()}]")
-                if celdas:
-                    texto_completo += fila_texto + " | ".join(celdas) + "\n"
-            texto_completo += "=== FIN TABLA ===\n\n"
+                        fila_texto.append(cell.text.strip())
+                if fila_texto:
+                    texto_completo += " | ".join(fila_texto) + "\n"
+            texto_completo += "="*50 + "\n"
         
         return texto_completo.strip()
     except Exception as e:
-        print(f"❌ Error procesando DOCX: {e}")
         return f"ERROR: {str(e)}"
 
 def cargar_documentos_docx():
@@ -81,87 +77,93 @@ def cargar_documentos_docx():
             texto = procesar_docx_completo(ruta_archivo)
             if texto:
                 documentos[archivo] = texto
-                print(f"✅ Documento cargado: {archivo} - {len(texto)} caracteres")
-    
     return documentos
 
 # ================================
-# BÚSQUEDA MEJORADA - VISTA COMPLETA
+# BÚSQUEDA FUNCIONAL - VERSIÓN SIMPLE Y EFECTIVA
 # ================================
-def mostrar_contenido_completo(contenido, limite=50):
-    """Muestra el contenido completo del documento procesado"""
-    lineas = contenido.split('\n')
-    resultado = []
-    
-    resultado.append("<strong>📄 CONTENIDO COMPLETO DEL DOCUMENTO:</strong><br><br>")
-    
-    for i, linea in enumerate(lineas[:limite]):
-        if linea.strip():
-            # Resaltar tablas y secciones importantes
-            if '=== TABLA' in linea:
-                resultado.append(f"<br>🎯 <strong>{linea}</strong><br>")
-            elif 'P[' in linea and any(palabra in linea.lower() for palabra in ['puesta', 'marcha', 'servicio', 'procedimiento']):
-                resultado.append(f"<br>🔍 {linea}<br>")
-            else:
-                resultado.append(f"{linea}<br>")
-    
-    if len(lineas) > limite:
-        resultado.append(f"<br>... y {len(lineas) - limite} líneas más ...")
-    
-    return "".join(resultado)
-
-def buscar_puesta_marcha_inteligente(contenido):
-    """Búsqueda inteligente de toda la información de puesta en marcha"""
+def buscar_respuesta_directa(pregunta, contenido):
+    """Búsqueda directa y efectiva basada en el contenido real"""
+    pregunta_limpia = pregunta.lower()
     lineas = contenido.split('\n')
     resultados = []
     
-    # Buscar en TODO el contenido, no solo en párrafos específicos
-    for i, linea in enumerate(lineas):
-        linea_limpia = linea.strip()
-        
-        # Buscar cualquier mención de puesta en marcha
-        if any(termino in linea_limpia.lower() for termino in [
-            'puesta en marcha', 'servicio de puesta', 'implementación', 
-            'procedimiento', 'proceso general', 'detalle de los procedimientos'
-        ]):
-            resultados.append(f"🎯 <strong>Encontrado en línea {i}:</strong> {linea_limpia}<br>")
-            
-            # Mostrar contexto alrededor
-            inicio = max(0, i-2)
-            fin = min(len(lineas), i+8)
-            resultados.append("<em>Contexto:</em><br>")
-            for j in range(inicio, fin):
-                if lineas[j].strip():
-                    resultados.append(f"  {j}: {lineas[j].strip()}<br>")
-            resultados.append("<br>")
+    # 1. BUSCAR EQUIPOS ESPECÍFICOS
+    equipos = {
+        'stock': ['stock', 'equipamiento', 'inventario'],
+        'proyectos': ['proyectos', 'implementación', 'analistas'],
+        'soporte': ['soporte', 'técnico', 'tic', 'instalación'],
+        'imagen': ['imagen', 'cartelería'],
+        'monitoreo': ['monitoreo', 'vinculación'],
+        'dirección': ['dirección', 'programa']
+    }
+    
+    for equipo, palabras_clave in equipos.items():
+        if any(palabra in pregunta_limpia for palabra in palabras_clave):
+            # Buscar sección del equipo
+            for i, linea in enumerate(lineas):
+                if equipo in linea.lower() and len(linea.strip()) > 10:
+                    resultados.append(f"<strong>🏢 {equipo.upper()}</strong><br>")
+                    # Capturar información del equipo
+                    for j in range(i, min(i+10, len(lineas))):
+                        if lineas[j].strip() and len(lineas[j].strip()) > 5:
+                            resultados.append(f"• {lineas[j].strip()}<br>")
+                    break
+            break
+    
+    # 2. BUSCAR PROCEDIMIENTOS DE PUESTA EN MARCHA
+    if any(p in pregunta_limpia for p in ['puesta en marcha', 'procedimiento', 'proceso']):
+        # Buscar la tabla de puesta en marcha
+        en_tabla = False
+        for i, linea in enumerate(lineas):
+            if 'servicio de puesta en marcha' in linea.lower():
+                resultados.append("<strong>🚀 PROCEDIMIENTOS DE PUESTA EN MARCHA</strong><br>")
+                en_tabla = True
+                continue
+            if en_tabla and '=' in linea and len(linea.strip()) > 10:
+                en_tabla = False
+                break
+            if en_tabla and linea.strip():
+                # Formatear líneas de la tabla
+                if any(num in linea for num in ['1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.', '10.', '11.']):
+                    resultados.append(f"<br>🔹 {linea.strip()}<br>")
+                elif 'proyectos' in linea.lower() or 'soporte' in linea.lower() or 'stock' in linea.lower():
+                    resultados.append(f"• {linea.strip()}<br>")
+    
+    # 3. BUSCAR PROCEDIMIENTOS DE SEGUIMIENTO
+    if any(p in pregunta_limpia for p in ['seguimiento', 'soporte', 'mantenimiento']):
+        en_tabla = False
+        for i, linea in enumerate(lineas):
+            if 'procedimientos de seguimiento' in linea.lower():
+                resultados.append("<br><strong>🔧 PROCEDIMIENTOS DE SEGUIMIENTO</strong><br>")
+                en_tabla = True
+                continue
+            if en_tabla and '=' in linea and len(linea.strip()) > 10:
+                en_tabla = False
+                break
+            if en_tabla and linea.strip():
+                if any(letra in linea for letra in ['A.', 'B.', 'C.']):
+                    resultados.append(f"<br>🔸 {linea.strip()}<br>")
+                elif 'soporte técnico' in linea.lower() or 'imagen' in linea.lower() or 'stock' in linea.lower():
+                    resultados.append(f"• {linea.strip()}<br>")
+    
+    # 4. SI NO ENCONTRÓ NADA ESPECÍFICO, BUSCAR TÉRMINO GENERAL
+    if not resultados:
+        for i, linea in enumerate(lineas):
+            if pregunta_limpia in linea.lower() and len(linea.strip()) > 10:
+                resultados.append(f"<strong>🔍 RESULTADO ENCONTRADO:</strong><br>")
+                # Mostrar contexto
+                inicio = max(0, i-1)
+                fin = min(len(lineas), i+4)
+                for j in range(inicio, fin):
+                    if lineas[j].strip():
+                        resultados.append(f"{lineas[j].strip()}<br>")
+                break
     
     return resultados
 
-def buscar_tablas_especificas(contenido):
-    """Busca específicamente información de tablas"""
-    lineas = contenido.split('\n')
-    tablas = []
-    en_tabla = False
-    tabla_actual = []
-    
-    for i, linea in enumerate(lineas):
-        if '=== TABLA' in linea:
-            if tabla_actual:  # Guardar tabla anterior
-                tablas.append((i, tabla_actual))
-            en_tabla = True
-            tabla_actual = [linea]
-        elif '=== FIN TABLA ===' in linea:
-            en_tabla = False
-            tabla_actual.append(linea)
-            tablas.append((i, tabla_actual))
-            tabla_actual = []
-        elif en_tabla:
-            tabla_actual.append(linea)
-    
-    return tablas
-
 def buscar_localmente_mejorada(pregunta, documentos):
-    """Búsqueda local mejorada - VERSIÓN DIAGNÓSTICO"""
+    """Búsqueda local MEJORADA y FUNCIONAL"""
     pregunta_limpia = pregunta.lower()
     
     # 1. Pregunta sobre documentos disponibles
@@ -170,50 +172,39 @@ def buscar_localmente_mejorada(pregunta, documentos):
         doc_list = "<br>".join([f"• {d}" for d in docs])
         return f"<strong>📂 Documentos cargados ({len(docs)}):</strong><br><br>{doc_list}"
     
-    resultados = []
+    resultados_totales = []
     
     for doc_nombre, contenido in documentos.items():
-        # 2. MODO DIAGNÓSTICO COMPLETO
-        if any(p in pregunta_limpia for p in ['debug', 'diagnostico', 'completo', 'contenido']):
-            contenido_completo = mostrar_contenido_completo(contenido, 80)
-            return f"<strong>📄 {doc_nombre} - DIAGNÓSTICO COMPLETO</strong><br><br>{contenido_completo}"
+        # Buscar respuesta directa en el contenido
+        resultados = buscar_respuesta_directa(pregunta, contenido)
         
-        # 3. BUSCAR TABLAS
-        if any(p in pregunta_limpia for p in ['tabla', 'puesta en marcha', 'procedimiento']):
-            tablas = buscar_tablas_especificas(contenido)
-            if tablas:
-                resultados.append(f"<strong>📄 {doc_nombre} - TABLAS ENCONTRADAS ({len(tablas)})</strong><br><br>")
-                for num_tabla, (linea, tabla) in enumerate(tablas, 1):
-                    resultados.append(f"<strong>📊 TABLA {num_tabla} (línea {linea}):</strong><br>")
-                    for linea_tabla in tabla[:15]:  # Mostrar primeras 15 líneas de cada tabla
-                        resultados.append(f"{linea_tabla}<br>")
-                    resultados.append("<br>")
-        
-        # 4. BÚSQUEDA INTELIGENTE DE PUESTA EN MARCHA
-        if any(p in pregunta_limpia for p in ['puesta en marcha', 'marcha']):
-            busqueda_inteligente = buscar_puesta_marcha_inteligente(contenido)
-            if busqueda_inteligente:
-                resultados.append(f"<strong>📄 {doc_nombre} - BÚSQUEDA INTELIGENTE</strong><br><br>" + "".join(busqueda_inteligente))
+        if resultados:
+            resultados_totales.append(f"<strong>📄 {doc_nombre}</strong><br><br>" + "".join(resultados))
     
-    if resultados:
-        return "<br><br>".join(resultados)
+    if resultados_totales:
+        return "<br><br>".join(resultados_totales)
     
-    # 5. Si no encuentra nada específico, mostrar ayuda
-    return """
-    🤔 <strong>No encontré información específica.</strong><br><br>
-    💡 <strong>Prueba estos comandos:</strong><br>
-    • <strong>"DEBUG"</strong> - Ver contenido completo del documento<br>
-    • <strong>"TABLAS"</strong> - Ver todas las tablas encontradas<br>
-    • <strong>"PUESTA EN MARCHA"</strong> - Búsqueda inteligente<br>
-    • <strong>"DOCUMENTOS"</strong> - Lista de documentos cargados<br><br>
-    🎯 <strong>El problema puede ser:</strong><br>
-    - El documento no se está procesando completamente<br>
-    - Las tablas no se están extrayendo correctamente<br>
-    - La información está en formato que no detectamos<br>
+    # Si no encuentra nada, mostrar ayuda específica
+    return f"""
+    🤔 <strong>No encontré información específica sobre "{pregunta}"</strong><br><br>
+    
+    💡 <strong>Prueba con estos términos:</strong><br>
+    • <strong>"Stock"</strong> - Información sobre equipamiento e inventario<br>
+    • <strong>"Proyectos"</strong> - Gestión e implementación<br>
+    • <strong>"Soporte técnico"</strong> - Instalación y mantenimiento<br>
+    • <strong>"Puesta en marcha"</strong> - Procedimientos de implementación<br>
+    • <strong>"Imagen"</strong> - Cartelería y señalética<br>
+    • <strong>"Monitoreo"</strong> - Seguimiento y evaluación<br><br>
+    
+    📋 <strong>También puedes preguntar sobre:</strong><br>
+    - Procedimientos específicos<br>
+    - Responsabilidades de cada equipo<br>
+    - Procesos de instalación<br>
+    - Gestión de equipamiento
     """
 
 # ================================
-# GROQ 
+# GROQ MEJORADO
 # ================================
 def preguntar_groq(pregunta, documentos):
     api_key = os.environ.get('GROQ_API_KEY')
@@ -222,24 +213,23 @@ def preguntar_groq(pregunta, documentos):
         return respuesta
     
     try:
-        contexto = "INFORMACIÓN DISPONIBLE:\n\n"
+        contexto = "INFORMACIÓN DEL DOCUMENTO:\n\n"
         
         for doc_nombre, contenido in documentos.items():
-            # Para diagnóstico, enviar información completa
-            if any(p in pregunta.lower() for p in ['debug', 'diagnostico']):
-                contexto += f"DOCUMENTO: {doc_nombre}\n{contenido[:2000]}\n\n"
-            else:
-                # Buscar información relevante
-                lineas_relevantes = []
-                lineas = contenido.split('\n')
-                for linea in lineas:
-                    if any(termino in linea.lower() for termino in ['puesta en marcha', 'procedimiento', 'servicio']):
-                        lineas_relevantes.append(linea)
-                        if len(lineas_relevantes) >= 10:
-                            break
-                
-                if lineas_relevantes:
-                    contexto += f"DOCUMENTO: {doc_nombre}\n" + "\n".join(lineas_relevantes) + "\n\n"
+            # Enviar contenido relevante según la pregunta
+            lineas_relevantes = []
+            lineas = contenido.split('\n')
+            
+            for linea in lineas:
+                linea_limpia = linea.strip()
+                if (pregunta.lower() in linea_limpia.lower() or 
+                    any(termino in linea_limpia.lower() for termino in ['procedimiento', 'proceso', 'objetivo', 'actividad'])):
+                    lineas_relevantes.append(linea_limpia)
+                    if len(lineas_relevantes) >= 15:
+                        break
+            
+            if lineas_relevantes:
+                contexto += f"DOCUMENTO: {doc_nombre}\n" + "\n".join(lineas_relevantes) + "\n\n"
         
         if len(contexto) > 3000:
             contexto = contexto[:3000] + "..."
@@ -255,11 +245,11 @@ def preguntar_groq(pregunta, documentos):
                 "messages": [
                     {
                         "role": "system", 
-                        "content": "Eres un asistente especializado en diagnóstico. Analiza qué información está disponible y qué podría faltar. Responde de forma CLARA. Usa HTML básico: <br> para saltos de línea y <strong> para negritas."
+                        "content": "Eres un asistente especializado en Puntos Digitales. Responde de forma CLARA, CONCISA y BIEN ESTRUCTURADA. Usa HTML básico: <br> para saltos de línea y <strong> para negritas. Basate SOLO en la información proporcionada."
                     },
                     {
                         "role": "user", 
-                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nANÁLISIS:"
+                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA (usa HTML, sé específico):"
                     }
                 ],
                 "temperature": 0.1,
@@ -304,7 +294,13 @@ def chat():
         if any(s in pregunta.lower() for s in ['hola', 'buenos días', 'buenas', 'hello', 'hi']):
             return jsonify({
                 'success': True, 
-                'response': f"¡Hola! 👋 Soy tu asistente de diagnóstico.<br><br>Tengo {len(documentos)} documento(s) cargados.<br><br>¿En qué puedo ayudarte?"
+                'response': f"¡Hola! 👋 Soy tu asistente especializado en Puntos Digitales.<br><br>Tengo {len(documentos)} documento(s) cargados.<br><br>¿En qué puedo ayudarte?"
+            })
+        
+        if any(s in pregunta.lower() for s in ['chao', 'adiós', 'bye', 'nos vemos', 'gracias']):
+            return jsonify({
+                'success': True, 
+                'response': "¡Hasta luego! 👋<br><br>Fue un gusto ayudarte."
             })
         
         # Usar Groq con fallback transparente
@@ -319,16 +315,11 @@ def chat():
 # ================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 ChatBot Diagnóstico iniciado en puerto {port}")
+    print(f"🚀 ChatBot Punto Digital iniciado en puerto {port}")
+    api_key = os.environ.get('GROQ_API_KEY')
+    print(f"🔍 GROQ_API_KEY: {'✅ CONFIGURADA' if api_key else '❌ FALTANTE - Usando modo local'}")
     
     documentos = cargar_documentos_docx()
     print(f"📄 Documentos cargados: {len(documentos)}")
-    
-    # Mostrar diagnóstico inicial
-    for doc_nombre, contenido in documentos.items():
-        print(f"\n🔍 {doc_nombre}:")
-        print(f"   Longitud: {len(contenido)} caracteres")
-        print(f"   Líneas: {len(contenido.splitlines())}")
-        print(f"   Tablas encontradas: {contenido.count('=== TABLA')}")
     
     app.run(host='0.0.0.0', port=port, debug=False)
