@@ -2,6 +2,11 @@ from flask import Flask, request, jsonify, render_template, send_from_directory,
 import os
 from docx import Document
 import requests
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 DOCUMENTS_DIR = "documents"
@@ -61,102 +66,129 @@ def procesar_docx_completo(ruta_archivo):
         
         return texto_completo.strip()
     except Exception as e:
+        logger.error(f"Error procesando DOCX {ruta_archivo}: {str(e)}")
         return f"ERROR: {str(e)}"
 
 def cargar_documentos_docx():
     documentos = {}
     if not os.path.exists(DOCUMENTS_DIR):
+        logger.warning(f"Directorio {DOCUMENTS_DIR} no existe")
         return documentos
     
-    for archivo in os.listdir(DOCUMENTS_DIR):
+    archivos = os.listdir(DOCUMENTS_DIR)
+    logger.info(f"Archivos en directorio: {archivos}")
+    
+    for archivo in archivos:
         if archivo.lower().endswith('.docx'):
             ruta_archivo = os.path.join(DOCUMENTS_DIR, archivo)
+            logger.info(f"Procesando: {archivo}")
             texto = procesar_docx_completo(ruta_archivo)
             if texto and not texto.startswith("ERROR"):
                 documentos[archivo] = texto
+                logger.info(f"✅ Documento {archivo} cargado exitosamente")
+            else:
+                logger.error(f"❌ Error cargando {archivo}: {texto}")
+    
     return documentos
 
 # ================================
-# GROQ - ÚNICO MOTOR DE BÚSQUEDA
+# GROQ - CON MEJOR MANEJO DE ERRORES
 # ================================
 def preguntar_groq(pregunta, documentos):
     api_key = os.environ.get('GROQ_API_KEY')
+    
+    # DEBUG: Verificar si la API key está presente
+    logger.info(f"🔑 GROQ_API_KEY presente: {bool(api_key)}")
+    if api_key:
+        logger.info(f"🔑 Longitud de API key: {len(api_key)} caracteres")
+        # No logger la key completa por seguridad, pero podemos ver los primeros caracteres
+        logger.info(f"🔑 API key comienza con: {api_key[:10]}...")
+    
     if not api_key:
-        return "❌ Error: No se configuró GROQ_API_KEY. Por favor configura tu API key en Railway."
+        error_msg = "❌ GROQ_API_KEY no encontrada en variables de entorno"
+        logger.error(error_msg)
+        return error_msg
 
     try:
-        # Construir contexto con TODOS los documentos
-        contexto = "INFORMACIÓN COMPLETA DE LOS DOCUMENTOS DE PUNTOS DIGITALES:\n\n"
+        # Construir contexto
+        contexto = "INFORMACIÓN DE PUNTOS DIGITALES:\n\n"
+        total_caracteres = 0
         
         for doc_nombre, contenido in documentos.items():
-            contexto += f"--- DOCUMENTO: {doc_nombre} ---\n{contenido}\n\n"
+            doc_contexto = f"--- DOCUMENTO: {doc_nombre} ---\n{contenido}\n\n"
+            if total_caracteres + len(doc_contexto) > 15000:  # Más conservador
+                contexto += "[... Documento truncado por límites ...]\n\n"
+                break
+            contexto += doc_contexto
+            total_caracteres += len(doc_contexto)
         
-        # Limitar el contexto si es muy grande (Groq tiene límites)
-        if len(contexto) > 20000:
-            contexto = contexto[:20000] + "\n\n[Información truncada por límites de tamaño]"
+        logger.info(f"📚 Contexto preparado: {total_caracteres} caracteres")
         
-        # System prompt optimizado para Puntos Digitales
-        system_prompt = """
-        Eres un asistente especializado en el Programa Puntos Digitales de Argentina. 
-        Responde de forma CLARA, CONCISA y ESTRUCTURADA usando HTML básico.
+        # System prompt mejorado
+        system_prompt = """Eres un asistente especializado en Puntos Digitales. Responde en español usando HTML básico:
+        - <br> para saltos de línea
+        - <strong>texto</strong> para negritas
+        - • para listas
+        Base tus respuestas SOLO en la información proporcionada."""
         
-        FORMATO DE RESPUESTA OBLIGATORIO:
-        - Usa <br> para saltos de línea
-        - Usa <strong>texto</strong> para negritas  
-        - Usa • para listas con puntos
-        - Sé específico y basate SOLO en la información proporcionada
-        - Si la información no está en los documentos, dilo claramente
+        # Preparar request
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
         
-        ESTRUCTURA PREFERIDA:
-        <strong>[EMOJI] TÍTULO DESCRIPTIVO</strong><br>
-        <strong>📋 Información relevante:</strong><br>
-        • Punto 1<br>
-        • Punto 2<br>
-        <strong>👥 Equipos involucrados:</strong><br>
-        • Equipo - Función específica<br>
-        <strong>🔗 Procedimientos relacionados:</strong><br>
-        • Procedimiento X<br>
-        """
+        payload = {
+            "model": "llama3-8b-8192",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Contexto:\n{contexto}\n\nPregunta: {pregunta}\n\nRespuesta (usar HTML básico):"}
+            ],
+            "temperature": 0.1,
+            "max_tokens": 1000,
+            "timeout": 30
+        }
+        
+        logger.info("🔄 Enviando solicitud a Groq API...")
         
         response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "llama3-8b-8192",
-                "messages": [
-                    {
-                        "role": "system", 
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user", 
-                        "content": f"CONTEXTO COMPLETO DE TODOS LOS DOCUMENTOS:\n{contexto}\n\nPREGUNTA DEL USUARIO: {pregunta}\n\nRESPONDE EN ESPAÑOL USANDO EXCLUSIVAMENTE EL FORMATO HTML INDICADO:"
-                    }
-                ],
-                "temperature": 0.1,
-                "max_tokens": 1500
-            },
+            headers=headers,
+            json=payload,
             timeout=30
         )
         
+        logger.info(f"📡 Response status: {response.status_code}")
+        
         if response.status_code == 200:
-            respuesta = response.json()["choices"][0]["message"]["content"]
+            data = response.json()
+            respuesta = data["choices"][0]["message"]["content"]
+            logger.info("✅ Respuesta recibida de Groq")
             
-            # Asegurar formato HTML básico
+            # Asegurar formato HTML
             if '<br>' not in respuesta:
                 respuesta = respuesta.replace('\n', '<br>')
-            
+                
             return respuesta
+            
         else:
-            return f"❌ Error en la API de Groq: {response.status_code} - {response.text}"
+            error_msg = f"❌ Error Groq API: {response.status_code} - {response.text}"
+            logger.error(error_msg)
+            return error_msg
             
     except requests.exceptions.Timeout:
-        return "⏰ Timeout: La consulta tardó demasiado. Intenta nuevamente."
+        error_msg = "⏰ Timeout: Groq no respondió en 30 segundos"
+        logger.error(error_msg)
+        return error_msg
+        
+    except requests.exceptions.ConnectionError:
+        error_msg = "🔌 Error de conexión: No se pudo conectar con Groq"
+        logger.error(error_msg)
+        return error_msg
+        
     except Exception as e:
-        return f"❌ Error al conectar con Groq: {str(e)}"
+        error_msg = f"❌ Error inesperado: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
 
 # ================================
 # RUTAS PRINCIPALES
@@ -174,71 +206,58 @@ def chat():
         if not pregunta:
             return jsonify({'success': False, 'error': 'Por favor escribe una pregunta'})
         
+        logger.info(f"💬 Pregunta recibida: {pregunta}")
+        
         # Cargar documentos
         documentos = cargar_documentos_docx()
+        logger.info(f"📄 Documentos cargados: {len(documentos)}")
         
         if not documentos:
             return jsonify({
                 'success': True, 
-                'response': "📂 No hay documentos cargados en la carpeta 'documents'.<br><br>Por favor carga los manuales de Puntos Digitales."
+                'response': "📂 No hay documentos DOCX en la carpeta 'documents'."
             })
         
         # Respuestas rápidas
         pregunta_lower = pregunta.lower()
         
-        if any(s in pregunta_lower for s in ['hola', 'buenos días', 'buenas', 'hello', 'hi']):
+        if any(s in pregunta_lower for s in ['hola', 'buenos días', 'buenas']):
             return jsonify({
                 'success': True, 
-                'response': f"¡Hola! 👋 Soy tu asistente especializado en Puntos Digitales.<br><br>📚 Tengo {len(documentos)} documento(s) cargados.<br><br>¿En qué puedo ayudarte?"
+                'response': f"¡Hola! 👋 Soy tu asistente de Puntos Digitales.<br><br>📚 Tengo {len(documentos)} documento(s) cargados.<br><br>¿En qué puedo ayudarte?"
             })
         
-        if any(s in pregunta_lower for s in ['chao', 'adiós', 'bye', 'nos vemos']):
+        if any(s in pregunta_lower for s in ['chao', 'adiós', 'bye']):
             return jsonify({
                 'success': True, 
-                'response': "¡Hasta luego! 👋<br><br>Fue un gusto ayudarte."
+                'response': "¡Hasta luego! 👋"
             })
         
-        if 'gracias' in pregunta_lower:
-            return jsonify({
-                'success': True, 
-                'response': "¡De nada! 😊<br><br>¿Necesitas ayuda con algo más?"
-            })
-        
-        # Mostrar documentos disponibles
-        if any(p in pregunta_lower for p in ['documento', 'cargado', 'archivo', 'disponible', 'documentos']):
-            docs = list(documentos.keys())
-            doc_list = "<br>".join([f"• {d}" for d in docs])
-            return jsonify({
-                'success': True,
-                'response': f"<strong>📂 Documentos cargados ({len(docs)}):</strong><br><br>{doc_list}"
-            })
-        
-        # Usar Groq para todo el procesamiento
-        print(f"🔍 Procesando pregunta: {pregunta}")
+        # Usar Groq
+        logger.info("🚀 Enviando pregunta a Groq...")
         respuesta = preguntar_groq(pregunta, documentos)
+        
         return jsonify({'success': True, 'response': respuesta})
         
     except Exception as e:
-        print(f"❌ Error en chat: {str(e)}")
+        logger.error(f"💥 Error en endpoint /api/chat: {str(e)}")
         return jsonify({'success': False, 'error': f'Error interno: {str(e)}'})
 
 # ================================
-# INICIO DE LA APLICACIÓN
+# INICIO
 # ================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 ChatBot Punto Digital iniciado en puerto {port}")
     
+    # Verificar configuración crítica
     api_key = os.environ.get('GROQ_API_KEY')
-    if api_key:
-        print("✅ GROQ_API_KEY: CONFIGURADA - Usando IA para respuestas")
-    else:
-        print("❌ GROQ_API_KEY: NO CONFIGURADA - El chatbot no funcionará")
+    logger.info(f"🔑 GROQ_API_KEY configurada: {'✅ SÍ' if api_key else '❌ NO'}")
     
     documentos = cargar_documentos_docx()
-    print(f"📄 Documentos cargados: {len(documentos)}")
+    logger.info(f"📄 Documentos cargados: {len(documentos)}")
     
     for doc in documentos.keys():
-        print(f"   • {doc}")
+        logger.info(f"   📝 {doc}")
     
+    logger.info(f"🚀 Iniciando servidor en puerto {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
