@@ -1,11 +1,11 @@
-# 🤖 ChatBot GDE - Asistente Inteligente de Documentos
+# 🤖 ChatBot Punto Digital - Asistente Inteligente 
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
 ![Flask](https://img.shields.io/badge/Flask-2.3.3-green.svg)
 ![Railway](https://img.shields.io/badge/Deploy-Railway-purple.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-Un asistente inteligente que puede leer y buscar información en documentos DOCX, especializado en el Sistema de Gestión Documental Digital (GDE).
+Un asistente inteligente que puede leer y buscar información en documentos DOCX, enfocado en el programa Punto Digital.
 
 ## ✨ Características
 
