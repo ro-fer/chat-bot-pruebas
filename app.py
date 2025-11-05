@@ -37,7 +37,7 @@ def list_documents():
     return html
 
 # ================================
-# PROCESADOR DE DOCX (FUNCIONA BIEN)
+# PROCESADOR DE DOCX
 # ================================
 def procesar_docx_completo(ruta_archivo):
     """Procesa TODO el contenido del DOCX incluyendo tablas"""
@@ -80,44 +80,119 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# BÚSQUEDA FUNCIONAL - VERSIÓN SIMPLE Y EFECTIVA
+# BÚSQUEDA MEJORADA - VERSIÓN PRECISA
 # ================================
 def buscar_respuesta_directa(pregunta, contenido):
-    """Búsqueda directa y efectiva basada en el contenido real"""
+    """Búsqueda directa y precisa basada en el contenido real"""
     pregunta_limpia = pregunta.lower()
     lineas = contenido.split('\n')
     resultados = []
     
-    # 1. BUSCAR EQUIPOS ESPECÍFICOS
-    equipos = {
-        'stock': ['stock', 'equipamiento', 'inventario'],
-        'proyectos': ['proyectos', 'implementación', 'analistas'],
-        'soporte': ['soporte', 'técnico', 'tic', 'instalación'],
-        'imagen': ['imagen', 'cartelería'],
-        'monitoreo': ['monitoreo', 'vinculación'],
-        'dirección': ['dirección', 'programa']
+    # 1. BUSCAR TÉRMINOS ESPECÍFICOS PRIMERO
+    terminos_especificos = {
+        'reequipamiento': ['reequipamiento', 'cambio de equipamiento', 'recambio'],
+        'instalación': ['instalación', 'instalaciones', 'instalar', 'instalaciones técnicas'],
+        'cartelería': ['cartelería', 'señalética', 'imagen'],
+        'inauguración': ['inauguración', 'inaugurar', 'ceremonia'],
+        'equipamiento': ['equipamiento', 'configuración', 'equipos informáticos'],
+        'soporte técnico': ['soporte técnico', 'soporte tic', 'nivel 1', 'nivel 2'],
+        'monitoreo': ['monitoreo', 'vinculación', 'evaluación'],
+        'stock': ['stock', 'inventario', 'bienes']
     }
     
-    for equipo, palabras_clave in equipos.items():
+    for termino, palabras_clave in terminos_especificos.items():
         if any(palabra in pregunta_limpia for palabra in palabras_clave):
-            # Buscar sección del equipo
+            # Buscar líneas específicas sobre el término
             for i, linea in enumerate(lineas):
-                if equipo in linea.lower() and len(linea.strip()) > 10:
-                    resultados.append(f"<strong>🏢 {equipo.upper()}</strong><br>")
-                    # Capturar información del equipo
-                    for j in range(i, min(i+10, len(lineas))):
+                if any(palabra in linea.lower() for palabra in palabras_clave) and len(linea.strip()) > 10:
+                    resultados.append(f"<strong>🔍 INFORMACIÓN SOBRE {termino.upper()}:</strong><br>")
+                    # Capturar contexto
+                    inicio = max(0, i-1)
+                    fin = min(len(lineas), i+6)
+                    for j in range(inicio, fin):
                         if lineas[j].strip() and len(lineas[j].strip()) > 5:
-                            resultados.append(f"• {lineas[j].strip()}<br>")
+                            # Resaltar líneas muy relevantes
+                            if any(palabra in lineas[j].lower() for palabra in palabras_clave):
+                                resultados.append(f"<strong>• {lineas[j].strip()}</strong><br>")
+                            else:
+                                resultados.append(f"• {lineas[j].strip()}<br>")
                     break
             break
     
-    # 2. BUSCAR PROCEDIMIENTOS DE PUESTA EN MARCHA
+    # 2. BUSCAR EQUIPOS ESPECÍFICOS (MEJORADO)
+    equipos = {
+        'stock': {
+            'palabras': ['equipo de gestión de stock', 'stock', 'analistas de stock'],
+            'excluir': ['proyectos', 'soporte', 'dirección'],
+            'icono': '📦'
+        },
+        'proyectos': {
+            'palabras': ['equipo de proyectos', 'analistas de proyectos', 'proyectos'],
+            'excluir': ['dirección', 'stock', 'soporte técnico'],
+            'icono': '📋'
+        },
+        'soporte': {
+            'palabras': ['equipo de soporte técnico tic', 'soporte técnico', 'soporte tic'],
+            'excluir': ['proyectos', 'stock', 'dirección'],
+            'icono': '🔧'
+        },
+        'imagen': {
+            'palabras': ['equipo de imagen', 'imagen'],
+            'excluir': ['proyectos', 'stock'],
+            'icono': '🎨'
+        },
+        'monitoreo': {
+            'palabras': ['equipo de monitoreo y vinculación', 'monitoreo', 'vinculación'],
+            'excluir': ['proyectos', 'dirección'],
+            'icono': '📊'
+        },
+        'dirección': {
+            'palabras': ['dirección del programa', 'dirección'],
+            'excluir': ['proyectos', 'stock', 'soporte'],
+            'icono': '👨‍💼'
+        }
+    }
+    
+    for equipo, config in equipos.items():
+        if any(palabra in pregunta_limpia for palabra in config['palabras']):
+            # Buscar sección específica del equipo
+            for i, linea in enumerate(lineas):
+                linea_limpia = linea.strip()
+                
+                # Detectar inicio de la sección del equipo
+                if (any(palabra in linea_limpia.lower() for palabra in config['palabras']) and 
+                    not any(excluir in linea_limpia.lower() for excluir in config['excluir'])):
+                    
+                    resultados.append(f"<strong>{config['icono']} {equipo.upper()}</strong><br>")
+                    
+                    # Capturar información específica del equipo
+                    info_equipo = []
+                    for j in range(i, min(i+20, len(lineas))):
+                        linea_actual = lineas[j].strip()
+                        if linea_actual and len(linea_actual) > 5:
+                            # Detectar fin de sección (nuevo equipo)
+                            if j > i+2 and any(otro_equipo in linea_actual.lower() for otro_equipo in ['equipo de', 'equipo ', 'dirección'] if not any(palabra in linea_actual.lower() for palabra in config['palabras'])):
+                                break
+                            info_equipo.append(linea_actual)
+                    
+                    # Filtrar y formatear información relevante
+                    lineas_importantes = []
+                    for linea_info in info_equipo:
+                        if any(keyword in linea_info.lower() for keyword in ['objetivos', 'actividades', 'funciones', 'responsable']):
+                            lineas_importantes.append(f"<br><strong>{linea_info}</strong><br>")
+                        elif len(linea_info) > 10:
+                            lineas_importantes.append(f"• {linea_info}<br>")
+                    
+                    resultados.extend(lineas_importantes[:12])  # Máximo 12 líneas
+                    break
+    
+    # 3. BUSCAR PROCEDIMIENTOS DE PUESTA EN MARCHA
     if any(p in pregunta_limpia for p in ['puesta en marcha', 'procedimiento', 'proceso']):
         # Buscar la tabla de puesta en marcha
         en_tabla = False
         for i, linea in enumerate(lineas):
             if 'servicio de puesta en marcha' in linea.lower():
-                resultados.append("<strong>🚀 PROCEDIMIENTOS DE PUESTA EN MARCHA</strong><br>")
+                resultados.append("<br><strong>🚀 PROCEDIMIENTOS DE PUESTA EN MARCHA</strong><br>")
                 en_tabla = True
                 continue
             if en_tabla and '=' in linea and len(linea.strip()) > 10:
@@ -130,7 +205,7 @@ def buscar_respuesta_directa(pregunta, contenido):
                 elif 'proyectos' in linea.lower() or 'soporte' in linea.lower() or 'stock' in linea.lower():
                     resultados.append(f"• {linea.strip()}<br>")
     
-    # 3. BUSCAR PROCEDIMIENTOS DE SEGUIMIENTO
+    # 4. BUSCAR PROCEDIMIENTOS DE SEGUIMIENTO
     if any(p in pregunta_limpia for p in ['seguimiento', 'soporte', 'mantenimiento']):
         en_tabla = False
         for i, linea in enumerate(lineas):
@@ -147,17 +222,17 @@ def buscar_respuesta_directa(pregunta, contenido):
                 elif 'soporte técnico' in linea.lower() or 'imagen' in linea.lower() or 'stock' in linea.lower():
                     resultados.append(f"• {linea.strip()}<br>")
     
-    # 4. SI NO ENCONTRÓ NADA ESPECÍFICO, BUSCAR TÉRMINO GENERAL
+    # 5. SI NO ENCONTRÓ NADA ESPECÍFICO, BUSCAR TÉRMINO GENERAL
     if not resultados:
         for i, linea in enumerate(lineas):
             if pregunta_limpia in linea.lower() and len(linea.strip()) > 10:
-                resultados.append(f"<strong>🔍 RESULTADO ENCONTRADO:</strong><br>")
+                resultados.append(f"<strong>🔍 INFORMACIÓN RELACIONADA:</strong><br>")
                 # Mostrar contexto
                 inicio = max(0, i-1)
                 fin = min(len(lineas), i+4)
                 for j in range(inicio, fin):
                     if lineas[j].strip():
-                        resultados.append(f"{lineas[j].strip()}<br>")
+                        resultados.append(f"• {lineas[j].strip()}<br>")
                 break
     
     return resultados
@@ -189,18 +264,21 @@ def buscar_localmente_mejorada(pregunta, documentos):
     🤔 <strong>No encontré información específica sobre "{pregunta}"</strong><br><br>
     
     💡 <strong>Prueba con estos términos:</strong><br>
-    • <strong>"Stock"</strong> - Información sobre equipamiento e inventario<br>
-    • <strong>"Proyectos"</strong> - Gestión e implementación<br>
+    • <strong>"Stock"</strong> - Equipamiento e inventario<br>
+    • <strong>"Proyectos"</strong> - Implementación y gestión<br>
     • <strong>"Soporte técnico"</strong> - Instalación y mantenimiento<br>
     • <strong>"Puesta en marcha"</strong> - Procedimientos de implementación<br>
-    • <strong>"Imagen"</strong> - Cartelería y señalética<br>
-    • <strong>"Monitoreo"</strong> - Seguimiento y evaluación<br><br>
+    • <strong>"Instalación"</strong> - Procesos de instalación técnica<br>
+    • <strong>"Reequipamiento"</strong> - Cambio de equipamiento<br>
+    • <strong>"Cartelería"</strong> - Imagen y señalética<br><br>
     
-    📋 <strong>También puedes preguntar sobre:</strong><br>
-    - Procedimientos específicos<br>
-    - Responsabilidades de cada equipo<br>
-    - Procesos de instalación<br>
-    - Gestión de equipamiento
+    📋 <strong>Equipos disponibles:</strong><br>
+    - Dirección del Programa<br>
+    - Equipo de Proyectos<br>
+    - Gestión de Stock<br>
+    - Soporte Técnico TIC<br>
+    - Equipo de Imagen<br>
+    - Monitoreo y Vinculación
     """
 
 # ================================
@@ -223,7 +301,7 @@ def preguntar_groq(pregunta, documentos):
             for linea in lineas:
                 linea_limpia = linea.strip()
                 if (pregunta.lower() in linea_limpia.lower() or 
-                    any(termino in linea_limpia.lower() for termino in ['procedimiento', 'proceso', 'objetivo', 'actividad'])):
+                    any(termino in linea_limpia.lower() for termino in ['procedimiento', 'proceso', 'objetivo', 'actividad', 'función'])):
                     lineas_relevantes.append(linea_limpia)
                     if len(lineas_relevantes) >= 15:
                         break
