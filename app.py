@@ -64,85 +64,89 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# BÚSQUEDA ESPECÍFICA PARA PROCEDIMIENTOS
+# BÚSQUEDA MEJORADA PARA PROCEDIMIENTOS
 # ================================
-def extraer_tabla_procedimientos(contenido):
-    """Extrae específicamente las tablas de procedimientos"""
+def extraer_procedimientos_instalacion_completo(contenido):
+    """Extrae específicamente los procedimientos de instalación de las tablas"""
     lineas = contenido.split('\n')
     procedimientos = []
+    
+    # Buscar la tabla de "Servicio de Puesta en Marcha"
     en_tabla_puesta_marcha = False
+    pasos_encontrados = []
+    
+    for i, linea in enumerate(lineas):
+        linea_limpia = linea.strip()
+        
+        # Detectar inicio de la tabla de puesta en marcha
+        if 'servicio de puesta en marcha' in linea_limpia.lower():
+            en_tabla_puesta_marcha = True
+            procedimientos.append("<strong>🚀 SERVICIO DE PUESTA EN MARCHA DE UN PUNTO DIGITAL</strong><br>")
+            continue
+            
+        # Capturar las líneas de la tabla
+        if en_tabla_puesta_marcha:
+            # Buscar líneas que parecen ser de la tabla (contienen números y equipos)
+            if (re.match(r'^\d+\.', linea_limpia) or 
+                any(equipo in linea_limpia.lower() for equipo in ['proyectos', 'stock', 'soporte', 'imagen', 'monitoreo']) and 
+                any(proceso in linea_limpia.lower() for proceso in ['gestión', 'análisis', 'instalación', 'preinstalación', 'entrega'])):
+                
+                # Formatear la línea para mejor legibilidad
+                if 'instalación' in linea_limpia.lower():
+                    linea_formateada = f"<br>🔨 <strong>{linea_limpia}</strong>"
+                else:
+                    linea_formateada = f"<br>• {linea_limpia}"
+                
+                procedimientos.append(linea_formateada)
+                pasos_encontrados.append(linea_limpia)
+            
+            # Detectar fin de la tabla (cuando empieza otra sección)
+            if 'procedimientos de seguimiento' in linea_limpia.lower() or i > len(lineas) - 5:
+                en_tabla_puesta_marcha = False
+    
+    # Si no se encontró la tabla específica, buscar información relevante sobre instalación
+    if not pasos_encontrados:
+        procedimientos.append("<strong>📋 INFORMACIÓN SOBRE INSTALACIÓN</strong><br>")
+        actividades_instalacion = []
+        
+        for i, linea in enumerate(lineas):
+            linea_limpia = linea.strip()
+            if any(termino in linea_limpia.lower() for termino in [
+                'instalación presencial', 'realiza las instalaciones', 'configuraciones necesarias',
+                'puesta en marcha', 'equipos tecnológicos', 'soporte técnico tic'
+            ]) and len(linea_limpia) > 20:
+                actividades_instalacion.append(f"<br>🔧 {linea_limpia}")
+                if len(actividades_instalacion) >= 8:
+                    break
+        
+        procedimientos.extend(actividades_instalacion)
+    
+    return procedimientos
+
+def extraer_procedimientos_seguimiento(contenido):
+    """Extrae los procedimientos de seguimiento y soporte"""
+    lineas = contenido.split('\n')
+    procedimientos = []
     en_tabla_seguimiento = False
     
     for i, linea in enumerate(lineas):
         linea_limpia = linea.strip()
         
-        # Detectar inicio de tabla de puesta en marcha
-        if 'servicio de puesta en marcha' in linea_limpia.lower():
-            en_tabla_puesta_marcha = True
-            procedimientos.append("<strong>🚀 SERVICIO DE PUESTA EN MARCHA - PROCEDIMIENTOS</strong><br>")
-            continue
-            
-        # Detectar inicio de tabla de seguimiento
+        # Detectar inicio de la tabla de seguimiento
         if 'procedimientos de seguimiento y soporte' in linea_limpia.lower():
             en_tabla_seguimiento = True
             procedimientos.append("<br><strong>🔧 PROCEDIMIENTOS DE SEGUIMIENTO Y SOPORTE</strong><br>")
             continue
             
-        # Capturar líneas de la tabla de puesta en marcha
-        if en_tabla_puesta_marcha:
-            # Buscar líneas con formato de tabla (números, equipos, procesos)
-            if re.match(r'^\d+\.', linea_limpia) or any(equipo in linea_limpia.lower() for equipo in ['proyectos', 'stock', 'soporte', 'imagen', 'monitoreo']):
-                if len(linea_limpia) > 5:
-                    # Formatear mejor la línea
-                    if 'instalación' in linea_limpia.lower():
-                        procedimientos.append(f"<br>🔨 <strong>{linea_limpia}</strong>")
-                    else:
-                        procedimientos.append(f"<br>• {linea_limpia}")
-            
-            # Detectar fin de la tabla
-            if 'procedimientos de seguimiento' in linea_limpia.lower() or i > len(lineas) - 10:
-                en_tabla_puesta_marcha = False
-                
         # Capturar líneas de la tabla de seguimiento
         if en_tabla_seguimiento:
             if any(equipo in linea_limpia.lower() for equipo in ['soporte técnico', 'imagen', 'gestión de stock']):
-                if len(linea_limpia) > 5:
+                if len(linea_limpia) > 10:
                     procedimientos.append(f"<br>• {linea_limpia}")
-    
-    return procedimientos
-
-def extraer_procedimientos_especificos(contenido, tipo_procedimiento):
-    """Extrae procedimientos específicos según el tipo solicitado"""
-    lineas = contenido.split('\n')
-    procedimientos = []
-    
-    for i, linea in enumerate(lineas):
-        linea_limpia = linea.strip()
-        
-        # Para instalación - buscar actividades específicas
-        if tipo_procedimiento == 'instalación':
-            if any(termino in linea_limpia.lower() for termino in [
-                'ejecuta la instalación', 'realiza las instalaciones', 
-                'instalación presencial', 'configuraciones necesarias',
-                'puesta en marcha', 'preinstalación'
-            ]):
-                procedimientos.append(f"<br>🔨 {linea_limpia}")
-        
-        # Para cartelería
-        elif tipo_procedimiento == 'cartelería':
-            if any(termino in linea_limpia.lower() for termino in [
-                'cartelería', 'señalética', 'imagen', 'instalaciones presenciales',
-                'envíos e instalaciones', 'disposición y tipo de cartelería'
-            ]):
-                procedimientos.append(f"<br>📋 {linea_limpia}")
-        
-        # Para equipamiento/stock
-        elif tipo_procedimiento == 'equipamiento':
-            if any(termino in linea_limpia.lower() for termino in [
-                'equipamiento', 'stock', 'configurar equipos', 'envío y entrega',
-                'movimientos de stock', 'inventario'
-            ]):
-                procedimientos.append(f"<br>💻 {linea_limpia}")
+            
+            # Detectar fin de la tabla
+            if i > len(lineas) - 3 or 'lineamientos' in linea_limpia.lower():
+                en_tabla_seguimiento = False
     
     return procedimientos
 
@@ -151,26 +155,28 @@ def buscar_procedimientos_especificos(pregunta, documentos):
     pregunta_limpia = pregunta.lower()
     resultados = []
     
-    # Determinar el tipo de procedimiento buscado
-    tipo_procedimiento = None
-    if any(p in pregunta_limpia for p in ['instalación', 'instalar', 'implementación']):
-        tipo_procedimiento = 'instalación'
-    elif any(p in pregunta_limpia for p in ['cartelería', 'cartel', 'imagen', 'señalética']):
-        tipo_procedimiento = 'cartelería'
-    elif any(p in pregunta_limpia for p in ['equipamiento', 'stock', 'inventario', 'configuración']):
-        tipo_procedimiento = 'equipamiento'
-    
     for doc_nombre, contenido in documentos.items():
-        # Extraer tablas de procedimientos
-        tabla_procedimientos = extraer_tabla_procedimientos(contenido)
-        if tabla_procedimientos:
-            resultados.append(f"<strong>📄 {doc_nombre}</strong><br><br>" + "".join(tabla_procedimientos))
+        procedimientos_completos = []
         
-        # Extraer procedimientos específicos según el tipo
-        if tipo_procedimiento:
-            procedimientos_especificos = extraer_procedimientos_especificos(contenido, tipo_procedimiento)
-            if procedimientos_especificos:
-                resultados.append(f"<strong>📄 {doc_nombre} - {tipo_procedimiento.upper()}</strong><br><br>" + "".join(procedimientos_especificos[:10]))
+        # Para preguntas sobre instalación
+        if any(p in pregunta_limpia for p in ['instalación', 'implementación', 'puesta en marcha']):
+            procedimientos_instalacion = extraer_procedimientos_instalacion_completo(contenido)
+            procedimientos_completos.extend(procedimientos_instalacion)
+        
+        # Para preguntas sobre seguimiento/soporte
+        if any(p in pregunta_limpia for p in ['seguimiento', 'soporte', 'mantenimiento']):
+            procedimientos_seguimiento = extraer_procedimientos_seguimiento(contenido)
+            procedimientos_completos.extend(procedimientos_seguimiento)
+        
+        # Si no se especifica, mostrar ambos
+        if not any(p in pregunta_limpia for p in ['instalación', 'seguimiento', 'implementación', 'soporte']):
+            procedimientos_instalacion = extraer_procedimientos_instalacion_completo(contenido)
+            procedimientos_seguimiento = extraer_procedimientos_seguimiento(contenido)
+            procedimientos_completos.extend(procedimientos_instalacion)
+            procedimientos_completos.extend(procedimientos_seguimiento)
+        
+        if procedimientos_completos:
+            resultados.append(f"<strong>📄 {doc_nombre}</strong><br><br>" + "".join(procedimientos_completos))
     
     return resultados
 
@@ -185,29 +191,36 @@ def buscar_localmente_mejorada(pregunta, documentos):
         return f"<strong>📂 Documentos cargados ({len(docs)}):</strong><br><br>{doc_list}"
     
     # 2. Búsqueda específica de procedimientos
-    if any(p in pregunta_limpia for p in ['procedimiento', 'instalación', 'proceso', 'implementación', 'puesta en marcha', 'cartelería', 'equipamiento']):
+    if any(p in pregunta_limpia for p in ['procedimiento', 'instalación', 'proceso', 'implementación', 'puesta en marcha', 'seguimiento', 'soporte']):
         resultados_procedimientos = buscar_procedimientos_especificos(pregunta, documentos)
         if resultados_procedimientos:
             return "<br><br>".join(resultados_procedimientos)
     
-    # 3. Búsqueda por equipos (simplificada)
-    equipos = ['dirección', 'proyectos', 'stock', 'soporte', 'imagen', 'monitoreo']
-    for equipo in equipos:
+    # 3. Búsqueda por equipos
+    equipos = {
+        'dirección': '👨‍💼 Dirección',
+        'proyectos': '📋 Proyectos', 
+        'stock': '📦 Stock',
+        'soporte': '🔧 Soporte Técnico',
+        'imagen': '🎨 Imagen',
+        'monitoreo': '📊 Monitoreo'
+    }
+    
+    for equipo, emoji in equipos.items():
         if equipo in pregunta_limpia:
             for doc_nombre, contenido in documentos.items():
                 if equipo in contenido.lower():
-                    # Encontrar sección del equipo
+                    # Buscar sección específica del equipo
                     lineas = contenido.split('\n')
-                    seccion_equipo = []
+                    info_equipo = []
                     for i, linea in enumerate(lineas):
-                        if equipo in linea.lower() and len(linea) > 10:
-                            seccion_equipo.append(linea)
-                            if len(seccion_equipo) >= 3:
+                        if (equipo in linea.lower() or emoji.lower() in linea.lower()) and len(linea) > 15:
+                            info_equipo.append(f"<br>{linea}")
+                            if len(info_equipo) >= 4:
                                 break
                     
-                    if seccion_equipo:
-                        contenido_equipo = "<br>".join(seccion_equipo)
-                        return f"<strong>📄 {doc_nombre}</strong><br><br>{contenido_equipo}"
+                    if info_equipo:
+                        return f"<strong>📄 {doc_nombre}</strong><br><br><strong>{emoji} {equipo.upper()}</strong>" + "".join(info_equipo)
     
     # 4. Búsqueda general
     for doc_nombre, contenido in documentos.items():
@@ -216,11 +229,11 @@ def buscar_localmente_mejorada(pregunta, documentos):
             for i, linea in enumerate(lineas):
                 if pregunta_limpia in linea.lower():
                     inicio = max(0, i-1)
-                    fin = min(len(lineas), i+3)
+                    fin = min(len(lineas), i+4)
                     contexto = "<br>".join(lineas[inicio:fin])
                     return f"<strong>📄 {doc_nombre}</strong><br><br>{contexto}"
     
-    return "🤔 No encontré información específica sobre ese tema.<br><br>Puedes preguntar sobre:<br>• Procedimientos de instalación<br>• Cartelería e imagen<br>• Gestión de equipamiento<br>• Equipos específicos<br>• Documentos disponibles"
+    return "🤔 No encontré información específica sobre ese tema.<br><br>Puedes preguntar sobre:<br>• Procedimientos de instalación<br>• Procedimientos de seguimiento<br>• Equipos específicos<br>• Documentos disponibles"
 
 # ================================
 # GROQ 
@@ -232,17 +245,24 @@ def preguntar_groq(pregunta, documentos):
         return respuesta
     
     try:
-        contexto = "INFORMACIÓN SOBRE PUNTO DIGITAL:\n\n"
+        contexto = "INFORMACIÓN SOBRE PROCEDIMIENTOS DE PUNTO DIGITAL:\n\n"
         
         for doc_nombre, contenido in documentos.items():
-            # Enviar información específica según la pregunta
+            # Extraer información relevante según la pregunta
             if any(p in pregunta.lower() for p in ['procedimiento', 'instalación', 'proceso']):
                 # Extraer tablas de procedimientos
-                tabla_procedimientos = extraer_tabla_procedimientos(contenido)
-                if tabla_procedimientos:
-                    contexto += f"DOCUMENTO: {doc_nombre}\n" + "\n".join([linea.replace('<br>', '\n').replace('<strong>', '').replace('</strong>', '') for linea in tabla_procedimientos]) + "\n\n"
+                procedimientos = extraer_procedimientos_instalacion_completo(contenido)
+                procedimientos_seguimiento = extraer_procedimientos_seguimiento(contenido)
+                
+                if procedimientos or procedimientos_seguimiento:
+                    contexto += f"DOCUMENTO: {doc_nombre}\n"
+                    if procedimientos:
+                        contexto += "PROCEDIMIENTOS INSTALACIÓN:\n" + "\n".join([p.replace('<br>', '\n').replace('<strong>', '').replace('</strong>', '') for p in procedimientos]) + "\n"
+                    if procedimientos_seguimiento:
+                        contexto += "PROCEDIMIENTOS SEGUIMIENTO:\n" + "\n".join([p.replace('<br>', '\n').replace('<strong>', '').replace('</strong>', '') for p in procedimientos_seguimiento]) + "\n"
+                    contexto += "\n"
             else:
-                lineas = contenido.split('\n')[:8]
+                lineas = contenido.split('\n')[:10]
                 contexto += f"DOCUMENTO: {doc_nombre}\n" + '\n'.join(lineas) + "\n\n"
         
         if len(contexto) > 3000:
@@ -259,15 +279,15 @@ def preguntar_groq(pregunta, documentos):
                 "messages": [
                     {
                         "role": "system", 
-                        "content": "Eres un asistente especializado en Puntos Digitales. Responde de forma CLARA y CONCISA. Enfócate en los PROCEDIMIENTOS y PASOS específicos cuando se pregunte sobre procesos. Usa HTML básico: <br> para saltos de línea y <strong> para negritas. Basate SOLO en la información proporcionada."
+                        "content": "Eres un asistente especializado en Puntos Digitales. Responde de forma CLARA y ESTRUCTURADA. Cuando hablas de procedimientos, ORGANIZA la información en pasos claros. Usa HTML básico: <br> para saltos de línea y <strong> para negritas. Basate SOLO en la información proporcionada."
                     },
                     {
                         "role": "user", 
-                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA (usa HTML, sé específico con procedimientos):"
+                        "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA (usa HTML, organiza en pasos si es sobre procedimientos):"
                     }
                 ],
                 "temperature": 0.1,
-                "max_tokens": 600
+                "max_tokens": 800
             },
             timeout=15
         )
