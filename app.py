@@ -308,7 +308,12 @@ def chat():
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error: {str(e)}'})
+# AGREGAR ESTO A TU APP.PY
 
+@app.route('/probando')
+def nueva_pagina():
+    """Tu nueva página con el widget flotante"""
+    return render_template('index.html')
 # ================================
 # INICIO
 # ================================
