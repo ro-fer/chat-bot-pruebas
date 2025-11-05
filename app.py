@@ -6,7 +6,6 @@ import re
 
 app = Flask(__name__)
 DOCUMENTS_DIR = "documents"
-
 # ================================
 # CONFIGURACIÓN BÁSICA
 # ================================
@@ -64,13 +63,12 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# BÚSQUEDA LOCAL MEJORADA - CON HTML PARA SALTOS DE LÍNEA
+# BÚSQUEDA LOCAL MEJORADA 
 # ================================
 def formatear_respuesta_html(contenido, equipo):
     """Formatea la respuesta con HTML para saltos de línea"""
     lineas = contenido.split('\n')
     respuesta_formateada = f"<strong>🏢 {equipo.upper()}</strong><br><br>"
-    
     seccion_actual = ""
     for i, linea in enumerate(lineas):
         linea = linea.strip()
@@ -137,22 +135,18 @@ def extraer_seccion_equipo_estructurada(contenido, equipo_buscado):
         # Detectar subsecciones dentro del equipo
         if en_seccion:
             if 'coordinación' in linea_lower and len(linea_limpia) < 25:
-                seccion.append("")  # Salto de línea extra
                 seccion.append(f"👨‍💼 {linea_limpia}")
                 seccion.append("")  # Salto de línea
                 continue
             elif 'analistas' in linea_lower and len(linea_limpia) < 25:
-                seccion.append("")  # Salto de línea extra
                 seccion.append(f"👩‍💻 {linea_limpia}")
                 seccion.append("")  # Salto de línea
                 continue
             elif 'objetivos generales:' in linea_lower:
-                seccion.append("")  # Salto de línea
                 seccion.append(f"🎯 Objetivos Generales:")
                 seccion.append("")  # Salto de línea
                 continue
             elif 'actividades' in linea_lower and '/ tareas' in linea_lower:
-                seccion.append("")  # Salto de línea
                 seccion.append(f"📋 Actividades/Tareas:")
                 seccion.append("")  # Salto de línea
                 continue
@@ -187,7 +181,6 @@ def buscar_localmente_mejorada(pregunta, documentos):
         'imagen': ['imagen', 'cartelería', 'señalética', 'equipo de imagen'],
         'monitoreo': ['monitoreo', 'vinculación', 'capacitación', 'evaluación', 'monitoreo y vinculación']
     }
-    
     # Pregunta sobre documentos disponibles
     if any(p in pregunta_limpia for p in ['documento', 'cargado', 'archivo', 'disponible']):
         docs = list(documentos.keys())
@@ -229,19 +222,16 @@ def buscar_localmente_mejorada(pregunta, documentos):
     return "🤔 No encontré información específica sobre ese tema.<br><br>Prueba con: 'equipo de proyectos', 'soporte técnico', 'gestión de stock' o 'documentos cargados'"
 
 # ================================
-# GROQ - VERSIÓN CON HTML
+# GROQ 
 # ================================
 def preguntar_groq(pregunta, documentos):
-    """Versión que convierte saltos de línea a HTML"""
-    
     api_key = os.environ.get('GROQ_API_KEY')
-    
     if not api_key:
         respuesta = buscar_localmente_mejorada(pregunta, documentos)
         return respuesta
     
     try:
-        contexto = "INFORMACIÓN SOBRE PUNTOS DIGITALES:\n\n"
+        contexto = "INFORMACIÓN SOBRE PUNTO DIGITAL:\n\n"
         
         for doc_nombre, contenido in documentos.items():
             if any(p in pregunta.lower() for p in ['stock', 'equipamiento', 'inventario']):
@@ -325,13 +315,13 @@ def chat():
         if any(s in pregunta.lower() for s in ['hola', 'buenos días', 'buenas', 'hello', 'hi']):
             return jsonify({
                 'success': True, 
-                'response': f"¡Hola! 👋 Soy tu asistente especializado en Puntos Digitales.<br><br>Tengo {len(documentos)} documento(s) cargados.<br><br>¿En qué puedo ayudarte?"
+                'response': f"¡Hola! 👋 Soy tu asistente especializado en Punto Digital.<br>Tengo {len(documentos)} documento(s) cargados.<br>¿En qué puedo ayudarte?"
             })
         
         if any(s in pregunta.lower() for s in ['chao', 'adiós', 'bye', 'nos vemos', 'gracias']):
             return jsonify({
                 'success': True, 
-                'response': "¡Hasta luego! 👋<br><br>Fue un gusto ayudarte."
+                'response': "¡Hasta luego! 👋<br>Fue un gusto ayudarte."
             })
         
         # Usar Groq con fallback transparente
@@ -346,7 +336,7 @@ def chat():
 # ================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 ChatBot Puntos Digitales iniciado en puerto {port}")
+    print(f"🚀 ChatBot Punto Digital iniciado en puerto {port}")
     api_key = os.environ.get('GROQ_API_KEY')
     print(f"🔍 GROQ_API_KEY: {'✅ CONFIGURADA' if api_key else '❌ FALTANTE - Usando modo local'}")
     
