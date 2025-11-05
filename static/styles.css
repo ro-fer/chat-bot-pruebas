@@ -68,10 +68,67 @@ button {
     border-radius: 5px; 
     cursor: pointer; 
 }
+/* AGREGAR ESTO A TU STYLES.CSS EXISTENTE */
 
-button:hover {
-    background-color: #007a29;
+/* Estilos para página en construcción */
+.construction-container {
+    text-align: center;
+    background: rgb(255, 255, 255);
+    padding: 50px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    max-width: 600px;
+    margin: 50px auto;
 }
+
+.construction-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+    animation: bounce 2s infinite;
+}
+
+.construction-text {
+    font-size: 1.2em;
+    margin-bottom: 30px;
+    line-height: 1.6;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 10px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 5px;
+    margin: 30px 0;
+    overflow: hidden;
+}
+
+.progress {
+    width: 65%;
+    height: 100%;
+    background: linear-gradient(90deg, #00cec9, #0984e3);
+    border-radius: 5px;
+    animation: progressAnimation 3s infinite;
+}
+
+.contact-info {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.3);
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+    40% {transform: translateY(-10px);}
+    60% {transform: translateY(-5px);}
+}
+
+@keyframes progressAnimation {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+}
+
+/* === ESTILOS DEL WIDGET CHAT SARASA === */
 .tina-chat-widget {
     position: fixed;
     bottom: 20px;
@@ -79,6 +136,7 @@ button:hover {
     z-index: 1000;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
+
 .tina-chat-button {
     width: 60px;
     height: 60px;
@@ -93,9 +151,12 @@ button:hover {
     transition: all 0.3s ease;
     animation: pulse 2s infinite;
 }
+
 .tina-chat-button:hover {
     transform: scale(1.1);
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
 }
+
 .tina-chat-window {
     position: absolute;
     bottom: 70px;
@@ -109,21 +170,38 @@ button:hover {
     flex-direction: column;
     overflow: hidden;
 }
+
 .tina-chat-window.active {
     display: flex;
 }
+
 .tina-chat-header {
     background: linear-gradient(135deg, #00cec9, #0984e3);
     color: white;
     padding: 20px;
     text-align: center;
+    position: relative;
 }
+
+.tina-chat-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.tina-chat-header p {
+    margin: 5px 0 0 0;
+    font-size: 12px;
+    opacity: 0.9;
+}
+
 .tina-chat-messages {
     flex: 1;
     padding: 15px;
     overflow-y: auto;
     background: #f8f9fa;
 }
+
 .tina-message {
     margin-bottom: 15px;
     padding: 10px 15px;
@@ -132,19 +210,23 @@ button:hover {
     animation: fadeIn 0.3s ease;
     font-size: 14px;
     line-height: 1.4;
+    color: #333;
 }
+
 .tina-bot-message {
     background: white;
     border: 1px solid #e0e0e0;
     border-radius: 18px 18px 18px 4px;
     margin-right: auto;
 }
+
 .tina-user-message {
     background: #0984e3;
     color: white;
     margin-left: auto;
     border-radius: 18px 18px 4px 18px;
 }
+
 .tina-chat-input {
     padding: 15px;
     background: white;
@@ -152,6 +234,7 @@ button:hover {
     display: flex;
     gap: 10px;
 }
+
 .tina-chat-input input {
     flex: 1;
     padding: 12px 15px;
@@ -160,6 +243,26 @@ button:hover {
     outline: none;
     font-size: 14px;
 }
+
+.tina-chat-input input:focus {
+    border-color: #0984e3;
+}
+
+.tina-chat-input button {
+    background: #0984e3;
+    color: white;
+    border: none;
+    border-radius: 25px;
+    padding: 12px 20px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.3s;
+}
+
+.tina-chat-input button:hover {
+    background: #0770c4;
+}
+
 .tina-typing {
     display: none;
     padding: 10px 15px;
@@ -167,6 +270,7 @@ button:hover {
     font-style: italic;
     font-size: 12px;
 }
+
 .tina-close-btn {
     position: absolute;
     top: 10px;
@@ -176,12 +280,26 @@ button:hover {
     color: white;
     font-size: 20px;
     cursor: pointer;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s;
 }
+
+.tina-close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Animaciones */
 @keyframes pulse {
     0% { transform: scale(1); }
     50% { transform: scale(1.05); }
     100% { transform: scale(1); }
 }
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
