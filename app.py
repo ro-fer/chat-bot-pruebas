@@ -92,12 +92,11 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# GROQ - CORREGIDO (sin timeout en el JSON)
+# GROQ - MODELO ACTUALIZADO
 # ================================
 def preguntar_groq(pregunta, documentos):
     api_key = os.environ.get('GROQ_API_KEY')
     
-    # DEBUG: Verificar si la API key está presente
     logger.info(f"🔑 GROQ_API_KEY presente: {bool(api_key)}")
     if api_key:
         logger.info(f"🔑 Longitud de API key: {len(api_key)} caracteres")
@@ -130,21 +129,20 @@ def preguntar_groq(pregunta, documentos):
         - • para listas
         Base tus respuestas SOLO en la información proporcionada."""
         
-        # Preparar request - CORREGIDO: sin 'timeout' en el JSON
+        # Preparar request - MODELO ACTUALIZADO
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         
         payload = {
-            "model": "llama3-8b-8192",
+            "model": "llama-3.1-8b-instant",  # ✅ MODELO ACTUALIZADO
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Contexto:\n{contexto}\n\nPregunta: {pregunta}\n\nRespuesta (usar HTML básico):"}
             ],
             "temperature": 0.1,
             "max_tokens": 1000
-            # ⚠️ REMOVIDO: "timeout": 30 - Groq no soporta este parámetro
         }
         
         logger.info("🔄 Enviando solicitud a Groq API...")
@@ -153,7 +151,7 @@ def preguntar_groq(pregunta, documentos):
             "https://api.groq.com/openai/v1/chat/completions",
             headers=headers,
             json=payload,
-            timeout=30  # ✅ Timeout solo aquí, en la llamada a requests
+            timeout=30
         )
         
         logger.info(f"📡 Response status: {response.status_code}")
