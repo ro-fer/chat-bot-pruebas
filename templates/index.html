@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Página con Chat Tina</title>
+    <link rel="stylesheet" href="../static/styles.css" />
+
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Mi Página Nueva</h1>
+        <p>Esta es mi página personalizada con el chat flotante de Tina.</p>
+        <p>Puedes agregar aquí todo el contenido que quieras.</p>
+        
+        <h2>Características:</h2>
+        <ul>
+            <li>Diseño moderno</li>
+            <li>Chat integrado</li>
+            <li>Totalmente responsive</li>
+        </ul>
+    </div>
+
+    <!-- WIDGET DE CHAT TINA -->
+    <div class="tina-chat-widget">
+        <div class="tina-chat-window" id="tinaChatWindow">
+            <div class="tina-chat-header">
+                <button class="tina-close-btn" onclick="toggleTinaChat()">×</button>
+                <h3>¡Hola, soy Tina! 👋</h3>
+                <p>Tu asistente virtual de Puntos Digitales</p>
+            </div>
+            
+            <div class="tina-chat-messages" id="tinaMessages">
+                <div class="tina-message tina-bot-message">
+                    <strong>¡Hola! 👋</strong><br>
+                    Soy Tina, tu asistente especializada en Puntos Digitales. 
+                    ¿En qué puedo ayudarte hoy?
+                </div>
+            </div>
+            
+            <div class="tina-typing" id="tinaTyping">
+                Tina está escribiendo...
+            </div>
+            
+            <div class="tina-chat-input">
+                <input type="text" id="tinaInput" placeholder="Escribe tu pregunta..." autocomplete="off">
+                <button onclick="sendTinaMessage()">Enviar</button>
+            </div>
+        </div>
+        
+        <button class="tina-chat-button" onclick="toggleTinaChat()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="white"/>
+            </svg>
+        </button>
+    </div>
+
+    <script>
+        let isTinaOpen = false;
+
+        function toggleTinaChat() {
+            const chatWindow = document.getElementById('tinaChatWindow');
+            isTinaOpen = !isTinaOpen;
+            
+            if (isTinaOpen) {
+                chatWindow.classList.add('active');
+                document.getElementById('tinaInput').focus();
+            } else {
+                chatWindow.classList.remove('active');
+            }
+        }
+
+        function addTinaMessage(message, isUser = false) {
+            const messagesDiv = document.getElementById('tinaMessages');
+            const messageDiv = document.createElement('div');
+            
+            messageDiv.className = `tina-message ${isUser ? 'tina-user-message' : 'tina-bot-message'}`;
+            messageDiv.innerHTML = message;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function showTinaTyping() {
+            document.getElementById('tinaTyping').style.display = 'block';
+        }
+
+        function hideTinaTyping() {
+            document.getElementById('tinaTyping').style.display = 'none';
+        }
+
+        async function sendTinaMessage() {
+            const input = document.getElementById('tinaInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            addTinaMessage(message, true);
+            input.value = '';
+            
+            showTinaTyping();
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt: message })
+                });
+                
+                const data = await response.json();
+                hideTinaTyping();
+                
+                if (data.success) {
+                    addTinaMessage(data.response);
+                } else {
+                    addTinaMessage('❌ Lo siento, hubo un error. Por favor, intenta nuevamente.');
+                }
+            } catch (error) {
+                hideTinaTyping();
+                addTinaMessage('❌ Error de conexión. Verifica tu internet.');
+            }
+        }
+
+        document.getElementById('tinaInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendTinaMessage();
+            }
+        });
+
+        // Auto-abrir después de 3 segundos
+        setTimeout(() => {
+            if (!isTinaOpen) {
+                toggleTinaChat();
+            }
+        }, 3000);
+    </script>
+</body>
+</html>
