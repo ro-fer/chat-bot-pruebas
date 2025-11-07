@@ -3,6 +3,7 @@ import os
 from docx import Document
 import requests
 import logging
+import re
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -151,61 +152,148 @@ def cargar_documentos_docx():
     return documentos
 
 # ================================
-# GROQ - MEJOR CONTEXTO
+# BÚSQUEDA LOCAL MEJORADA
+# ================================
+def buscar_localmente(pregunta, documentos):
+    """Búsqueda local mejorada para cuando Groq no está disponible"""
+    pregunta_limpia = pregunta.lower()
+    
+    # Diccionario de equipos y términos
+    equipos = {
+        'stock': ['stock', 'equipamiento', 'inventario'],
+        'proyectos': ['proyectos', 'implementación', 'analistas de proyectos'],
+        'soporte': ['soporte', 'técnico', 'tic', 'instalación'],
+        'imagen': ['imagen', 'cartelería', 'señalética'],
+        'monitoreo': ['monitoreo', 'vinculación'],
+        'dirección': ['dirección', 'programa']
+    }
+    
+    # Términos específicos
+    terminos_especificos = {
+        'reequipamiento': ['reequipamiento', 'recambio de equipamiento'],
+        'instalación': ['instalación', 'instalaciones técnicas'],
+        'cartelería': ['cartelería', 'señalética'],
+        'inauguración': ['inauguración', 'ceremonia']
+    }
+    
+    resultados = []
+    
+    for doc_nombre, contenido in documentos.items():
+        # Buscar por equipos
+        for equipo, palabras in equipos.items():
+            if any(palabra in pregunta_limpia for palabra in palabras):
+                # Buscar sección del equipo
+                lineas = contenido.split('\n')
+                en_seccion = False
+                
+                for i, linea in enumerate(lineas):
+                    linea_limpia = linea.strip()
+                    
+                    if any(palabra in linea_limpia.lower() for palabra in palabras):
+                        if not en_seccion:
+                            resultados.append(f"<strong>🏢 {equipo.upper()}</strong><br>")
+                            en_seccion = True
+                        
+                        # Capturar contexto
+                        inicio = max(0, i-1)
+                        fin = min(len(lineas), i+6)
+                        for j in range(inicio, fin):
+                            if lineas[j].strip() and len(lineas[j].strip()) > 5:
+                                resultados.append(f"• {lineas[j].strip()}<br>")
+                        break
+                break
+        
+        # Buscar por términos específicos
+        if not resultados:
+            for termino, palabras in terminos_especificos.items():
+                if any(palabra in pregunta_limpia for palabra in palabras):
+                    lineas = contenido.split('\n')
+                    for i, linea in enumerate(lineas):
+                        if any(palabra in linea.lower() for palabra in palabras) and len(linea.strip()) > 10:
+                            resultados.append(f"<strong>🔍 INFORMACIÓN SOBRE {termino.upper()}</strong><br>")
+                            inicio = max(0, i-1)
+                            fin = min(len(lineas), i+4)
+                            for j in range(inicio, fin):
+                                if lineas[j].strip():
+                                    resultados.append(f"• {lineas[j].strip()}<br>")
+                            break
+                    break
+        
+        # Búsqueda general si no encontró nada específico
+        if not resultados:
+            lineas = contenido.split('\n')
+            for i, linea in enumerate(lineas):
+                if pregunta_limpia in linea.lower() and len(linea.strip()) > 10:
+                    resultados.append(f"<strong>📄 {doc_nombre}</strong><br>")
+                    resultados.append(f"<strong>🔍 INFORMACIÓN RELACIONADA:</strong><br>")
+                    inicio = max(0, i-1)
+                    fin = min(len(lineas), i+4)
+                    for j in range(inicio, fin):
+                        if lineas[j].strip():
+                            resultados.append(f"• {lineas[j].strip()}<br>")
+                    break
+    
+    if resultados:
+        return "".join(resultados)
+    
+    return f"""
+    🤔 <strong>No encontré información específica sobre "{pregunta}"</strong><br><br>
+    
+    💡 <strong>Prueba con:</strong><br>
+    • <strong>"Stock"</strong> - Equipamiento e inventario<br>
+    • <strong>"Proyectos"</strong> - Implementación y gestión<br>
+    • <strong>"Soporte técnico"</strong> - Instalación y mantenimiento<br>
+    • <strong>"Instalación"</strong> - Procesos técnicos<br>
+    • <strong>"Reequipamiento"</strong> - Cambio de equipamiento<br>
+    • <strong>"Cartelería"</strong> - Imagen y señalética<br>
+    • <strong>"Puesta en marcha"</strong> - Procedimientos completos<br>
+    """
+
+# ================================
+# GROQ - MEJOR CONTEXTO Y MÁS ESTRICTO
 # ================================
 def preguntar_groq(pregunta, documentos):
     api_key = os.environ.get('GROQ_API_KEY')
     
     if not api_key:
-        return "❌ Error de configuración del servicio."
+        return buscar_localmente(pregunta, documentos)
 
     try:
-        # Construir contexto enfatizando equipos específicos
-        contexto = "MANUAL COMPLETO DE PUNTOS DIGITALES - INFORMACIÓN DETALLADA:\n\n"
-        
-        # Enfatizar equipos específicos en el contexto
-        equipos_especiales = [
-            "EQUIPO DE IMAGEN", "EQUIPO DE PROYECTOS", "EQUIPO DE GESTIÓN DE STOCK",
-            "EQUIPO DE SOPORTE TÉCNICO TIC", "EQUIPO DE MONITOREO Y VINCULACIÓN"
-        ]
+        # Construir contexto más estricto
+        contexto = "INFORMACIÓN EXACTA DEL DOCUMENTO - USAR SOLO ESTO:\n\n"
         
         for doc_nombre, contenido in documentos.items():
             contexto += f"=== DOCUMENTO: {doc_nombre} ===\n"
-            
-            # Resaltar equipos importantes
-            for equipo in equipos_especiales:
-                if equipo.lower() in contenido.lower():
-                    contexto += f"\n🔍 **{equipo} - INFORMACIÓN DISPONIBLE**\n"
             
             # Tomar contenido completo pero limitar tamaño
             lineas = contenido.split('\n')
             lineas_importantes = []
             
             for linea in lineas:
-                if any(keyword in linea.lower() for keyword in 
-                      ['equipo', 'coordinación', 'analistas', 'objetivos', 'actividades', 'imagen']):
-                    lineas_importantes.append(linea)
-                elif len(lineas_importantes) < 100:  # Límite razonable
-                    lineas_importantes.append(linea)
+                # Filtrar líneas con contenido sustancial
+                if (len(linea.strip()) > 10 and 
+                    not linea.startswith('===') and
+                    not linea.startswith('---')):
+                    lineas_importantes.append(linea.strip())
+                    if len(lineas_importantes) >= 60:  # Más líneas para mejor contexto
+                        break
             
-            contexto += "\n".join(lineas_importantes[:80]) + "\n\n"
+            contexto += "\n".join(lineas_importantes) + "\n\n"
             
-            if len(contexto) > 12000:
+            if len(contexto) > 10000:
                 contexto += "[... contenido adicional disponible ...]\n\n"
                 break
         
-        # System prompt más específico
-        system_prompt = """Eres un experto en el Programa Puntos Digitales. 
-Responde en español con HTML: <br> para saltos, <strong>para negritas</strong>, • para listas.
+        # System prompt MÁS ESTRICTO
+        system_prompt = """Eres un asistente que SOLO puede usar la información proporcionada. 
+REGLAS ESTRICTAS:
+1. NO inventes información
+2. NO supongas nada  
+3. NO agregues conocimiento externo
+4. Si no hay información suficiente, di que no la tienes
+5. Usa SOLO el texto proporcionado
 
-INFORMACIÓN CLAVE DISPONIBLE:
-- Equipo de Imagen: cartelería, señalética, instalaciones presenciales
-- Equipo de Proyectos: implementación, gestión, inauguraciones  
-- Equipo de Stock: equipamiento, inventario, reequipamiento
-- Equipo de Soporte Técnico: instalaciones TIC, mantenimiento
-- Equipo de Monitoreo: evaluación, capacitación, vinculación
-
-Basate SOLO en la información proporcionada."""
+Responde en español con HTML básico: <br> para saltos, <strong>para negritas</strong>."""
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -216,17 +304,18 @@ Basate SOLO en la información proporcionada."""
             "model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA (HTML básico, sé específico):"}
+                {"role": "user", "content": f"INFORMACIÓN DISPONIBLE (usar SOLO esto):\n{contexto}\n\nPREGUNTA: {pregunta}\n\nRESPUESTA (HTML básico, usar SOLO información proporcionada):"}
             ],
-            "temperature": 0.1,
-            "max_tokens": 800
+            "temperature": 0.1,  # Muy bajo para evitar invención
+            "max_tokens": 800,
+            "top_p": 0.3  # Más restrictivo
         }
         
         response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers=headers,
             json=payload,
-            timeout=20
+            timeout=25
         )
         
         if response.status_code == 200:
@@ -236,31 +325,21 @@ Basate SOLO en la información proporcionada."""
             # Mejorar formato HTML
             if '<br>' not in respuesta:
                 respuesta = respuesta.replace('\n', '<br>')
-            if '•' in respuesta and '<strong>' not in respuesta:
-                # Mejorar formato de listas
-                lineas = respuesta.split('<br>')
-                respuesta_mejorada = []
-                for linea in lineas:
-                    if linea.strip().startswith('•'):
-                        respuesta_mejorada.append(f"<strong>{linea.strip()}</strong>")
-                    else:
-                        respuesta_mejorada.append(linea)
-                respuesta = '<br>'.join(respuesta_mejorada)
-                
+            
             return respuesta
             
         elif response.status_code == 429:
-            return "⏳ <strong>Servicio ocupado</strong><br>Por favor, espera 5 segundos y vuelve a intentar."
+            return buscar_localmente(pregunta, documentos)
             
         else:
-            return "🔧 <strong>Servicio temporalmente no disponible</strong><br>Intenta nuevamente en un momento."
+            return buscar_localmente(pregunta, documentos)
             
     except Exception as e:
         logger.error(f"Error Groq: {str(e)}")
-        return "❌ Error temporal del servicio. Intenta nuevamente."
+        return buscar_localmente(pregunta, documentos)
 
 # ================================
-# RUTAS PRINCIPALES (igual que antes)
+# RUTAS PRINCIPALES
 # ================================
 @app.route('/')
 def home():
@@ -308,12 +387,12 @@ def chat():
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error: {str(e)}'})
-# AGREGAR ESTO A TU APP.PY
 
 @app.route('/probando-widget')
 def nueva_pagina():
     """Tu nueva página con el widget flotante"""
     return render_template('index.html')
+
 # ================================
 # INICIO
 # ================================
@@ -321,5 +400,5 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     documentos = cargar_documentos_docx()
     print(f"🚀 ChatBot Puntos Digitales - {len(documentos)} documentos")
-    print("✅ Procesador mejorado - Captura completa de Equipo de Imagen")
+    print("✅ Procesador mejorado - Búsqueda local y Groq mejorados")
     app.run(host='0.0.0.0', port=port, debug=False)
