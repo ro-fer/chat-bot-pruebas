@@ -39,11 +39,15 @@
                     Veo que el sitio está en construcción, pero yo estoy aquí para ayudarte.<br><br>
                     
                     <strong>💡 Puedes preguntar sobre:</strong><br>
-                    • <strong>Stock</strong> - Equipamiento e inventario<br>
-                    • <strong>Proyectos</strong> - Implementación y gestión<br>  
-                    • <strong>Soporte técnico</strong> - Instalación y mantenimiento<br>
-                    • <strong>Cartelería</strong> - Imagen y señalética<br><br>
-                    
+                    <div class="tina-quick-options">
+                        <button onclick="quickOption('Stock')">📦 Stock</button>
+                        <button onclick="quickOption('Proyectos')">📋 Proyectos</button>
+                        <button onclick="quickOption('Soporte técnico')">🔧 Soporte</button>
+                        <button onclick="quickOption('Cartelería')">🎨 Cartelería</button>
+                        <button onclick="quickOption('Instalación')">⚡ Instalación</button>
+                        <button onclick="quickOption('Reequipamiento')">🔄 Reequipamiento</button>
+                    </div>
+                    <br>
                     ¿En qué puedo asistirte con Puntos Digitales?
                 </div>
             </div>
@@ -80,12 +84,26 @@
             }
         }
 
-        function addTinaMessage(message, isUser = false) {
+        function addTinaMessage(message, isUser = false, showQuickOptions = false) {
             const messagesDiv = document.getElementById('tinaMessages');
             const messageDiv = document.createElement('div');
             
             messageDiv.className = `tina-message ${isUser ? 'tina-user-message' : 'tina-bot-message'}`;
-            messageDiv.innerHTML = message;
+            
+            if (showQuickOptions) {
+                messageDiv.innerHTML = message + `
+                    <div class="tina-quick-options">
+                        <button onclick="quickOption('Stock')">📦 Stock</button>
+                        <button onclick="quickOption('Proyectos')">📋 Proyectos</button>
+                        <button onclick="quickOption('Soporte técnico')">🔧 Soporte</button>
+                        <button onclick="quickOption('Cartelería')">🎨 Cartelería</button>
+                        <button onclick="quickOption('Instalación')">⚡ Instalación</button>
+                        <button onclick="quickOption('Reequipamiento')">🔄 Reequipamiento</button>
+                    </div>
+                `;
+            } else {
+                messageDiv.innerHTML = message;
+            }
             
             messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -132,7 +150,8 @@
                 hideTinaTyping();
                 
                 if (data.success) {
-                    addTinaMessage(data.response);
+                    // Mostrar botones después de cada respuesta del bot
+                    addTinaMessage(data.response, false, true);
                 } else {
                     addTinaMessage('❌ Lo siento, hubo un error. Por favor, intenta nuevamente.');
                 }
