@@ -42,6 +42,22 @@ def list_documents():
     return html
 
 # ================================
+# DETECTOR DE CONTEXTO DE CHAT
+# ================================
+def es_chat_flotante(request):
+    """Detecta si la solicitud viene del widget flotante"""
+    # Método 1: Por referer o headers
+    referer = request.headers.get('Referer', '')
+    if 'probando-widget' in referer:
+        return True
+    
+    # Método 2: Por parámetro en la solicitud
+    if request.json and request.json.get('source') == 'widget':
+        return True
+        
+    return False
+
+# ================================
 # PROCESADOR DE DOCX MEJORADO
 # ================================
 def procesar_docx_completo(ruta_archivo):
@@ -345,11 +361,17 @@ Responde en español con HTML básico: <br> para saltos, <strong>para negritas</
 def home():
     return render_template('chat.html')
 
+@app.route('/probando-widget')
+def nueva_pagina():
+    """Tu nueva página con el widget flotante"""
+    return render_template('index.html')
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     try:
         data = request.json
         pregunta = data.get('prompt', '').strip()
+        es_widget = es_chat_flotante(request)  # ← DETECTAMOS EL CONTEXTO
         
         if not pregunta:
             return jsonify({'success': False, 'error': 'Escribe una pregunta'})
@@ -362,14 +384,31 @@ def chat():
                 'response': "📂 No hay documentos en la carpeta 'documents'."
             })
         
-        # Respuestas rápidas
+        # RESPUESTAS RÁPIDAS DIFERENCIADAS
         pregunta_lower = pregunta.lower()
         
-        if any(s in pregunta_lower for s in ['hola', 'buenos días', 'buenas']):
-            return jsonify({
-                'success': True, 
-                'response': f"¡Hola! 👋 Asistente especializado en Puntos Digitales<br><br>📚 Documentos cargados: {len(documentos)}<br>¿En qué puedo ayudarte?"
-            })
+        # Saludo inicial - DIFERENTE SEGÚN EL CONTEXTO
+        if any(s in pregunta_lower for s in ['hola', 'buenos días', 'buenas', '/start']):
+            if es_widget:
+                # Respuesta para WIDGET (con sugerencias de botones)
+                return jsonify({
+                    'success': True, 
+                    'response': f"""¡Hola! 👋 <strong>Tina - Asistente Puntos Digitales</strong><br><br>
+💡 <strong>Puedes preguntar sobre:</strong><br>
+• <strong>Stock</strong> - Equipamiento e inventario<br>
+• <strong>Proyectos</strong> - Implementación y gestión<br>  
+• <strong>Soporte técnico</strong> - Instalación y mantenimiento<br>
+• <strong>Instalación</strong> - Procesos técnicos<br>
+• <strong>Cartelería</strong> - Imagen y señalética<br><br>
+📚 <em>Documentos cargados: {len(documentos)}</em>""",
+                    'widget_mode': True  # ← Nuevo flag para el frontend
+                })
+            else:
+                # Respuesta para CHAT NORMAL
+                return jsonify({
+                    'success': True, 
+                    'response': f"¡Hola! 👋 Asistente especializado en Puntos Digitales<br><br>📚 Documentos cargados: {len(documentos)}<br>¿En qué puedo ayudarte?"
+                })
         
         if any(s in pregunta_lower for s in ['chao', 'adiós', 'bye']):
             return jsonify({'success': True, 'response': "¡Hasta luego! 👋"})
@@ -382,16 +421,24 @@ def chat():
                 'response': f"<strong>📂 Documentos ({len(docs)}):</strong><br>{doc_list}"
             })
         
+        # Procesar pregunta normal con Groq
         respuesta = preguntar_groq(pregunta, documentos)
-        return jsonify({'success': True, 'response': respuesta})
+        
+        # Si es widget, agregar formato especial
+        if es_widget:
+            return jsonify({
+                'success': True, 
+                'response': respuesta,
+                'widget_mode': True  # ← Indicar al frontend que es widget
+            })
+        else:
+            return jsonify({
+                'success': True, 
+                'response': respuesta
+            })
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error: {str(e)}'})
-
-@app.route('/probando-widget')
-def nueva_pagina():
-    """Tu nueva página con el widget flotante"""
-    return render_template('index.html')
 
 # ================================
 # INICIO
@@ -400,5 +447,7 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     documentos = cargar_documentos_docx()
     print(f"🚀 ChatBot Puntos Digitales - {len(documentos)} documentos")
-    print("✅ Procesador mejorado - Búsqueda local y Groq mejorados")
+    print("✅ Sistema dual: Chat normal + Widget flotante")
+    print("📍 Chat normal: http://localhost:5000")
+    print("📍 Widget flotante: http://localhost:5000/probando-widget")
     app.run(host='0.0.0.0', port=port, debug=False)
