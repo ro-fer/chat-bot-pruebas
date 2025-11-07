@@ -306,10 +306,10 @@ button {
 }
 
 .tina-quick-options {
-    margin-top: 10px;
+    margin: 10px 0;
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
+    gap: 8px;
 }
 
 .tina-quick-options button {
@@ -317,12 +317,15 @@ button {
     color: white;
     border: none;
     padding: 8px 12px;
-    border-radius: 15px;
+    border-radius: 20px;
     font-size: 12px;
     cursor: pointer;
-    transition: background 0.3s;
+    transition: all 0.3s ease;
+    font-weight: 500;
 }
 
 .tina-quick-options button:hover {
     background: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
