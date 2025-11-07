@@ -37,6 +37,13 @@
                 <div class="tina-message tina-bot-message">
                     <strong>¡Hola! 👋</strong><br>
                     Veo que el sitio está en construcción, pero yo estoy aquí para ayudarte.<br><br>
+                    
+                    <strong>💡 Puedes preguntar sobre:</strong><br>
+                    • <strong>Stock</strong> - Equipamiento e inventario<br>
+                    • <strong>Proyectos</strong> - Implementación y gestión<br>  
+                    • <strong>Soporte técnico</strong> - Instalación y mantenimiento<br>
+                    • <strong>Cartelería</strong> - Imagen y señalética<br><br>
+                    
                     ¿En qué puedo asistirte con Puntos Digitales?
                 </div>
             </div>
@@ -92,6 +99,12 @@
             document.getElementById('tinaTyping').style.display = 'none';
         }
 
+        // Función para opciones rápidas
+        function quickOption(option) {
+            document.getElementById('tinaInput').value = option;
+            sendTinaMessage();
+        }
+
         async function sendTinaMessage() {
             const input = document.getElementById('tinaInput');
             const message = input.value.trim();
@@ -111,7 +124,7 @@
                     },
                     body: JSON.stringify({ 
                         prompt: message,
-                        source: 'widget'  // ← LÍNEA MODIFICADA
+                        source: 'widget'
                     })
                 });
                 
