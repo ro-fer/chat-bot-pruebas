@@ -304,3 +304,25 @@ button {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+.tina-quick-options {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.tina-quick-options button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 15px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.tina-quick-options button:hover {
+    background: #0056b3;
+}
