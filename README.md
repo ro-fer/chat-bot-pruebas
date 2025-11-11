@@ -44,7 +44,7 @@ Un asistente inteligente que puede leer y buscar información en documentos DOCX
 - **URL**: `https://chat-bot-pruebas-production.up.railway.app/probando-widget`
 - Página de ejemplo con chat integrado
 
-### Preguntas Ejemplo
+### Preguntas Ejemplo (en este caso)
 - "¿Qué equipamiento hay en stock?"
 - "Información sobre instalación"
 - "Procedimientos de soporte técnico"
