@@ -1,0 +1,13 @@
+services:
+  chatbot:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - DOC_USER=admin
+      - DOC_PASS=password123
+    volumes:
+      - ./documents:/app/documents
+      - ./templates:/app/templates
+      - ./static:/app/static
+    restart: unless-stopped
